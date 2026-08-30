@@ -1097,6 +1097,10 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
 
 
 def edit(project_folder="tmp", face_model="insightface", face_mode="auto", detection_period=None, filter_threshold=0.35, two_face_threshold=0.60, confidence_threshold=0.30, dead_zone=40, focus_active_speaker=False, active_speaker_mar=0.03, active_speaker_score_diff=1.5, include_motion=False, active_speaker_motion_deadzone=3.0, active_speaker_motion_sensitivity=0.05, active_speaker_decay=2.0, segments_data=None, no_face_mode="padding"):
+    fixed_center_mode = face_mode == "fixed_center"
+    if fixed_center_mode:
+        print("Fixed Center mode enabled: face detection is disabled; using a static 9:16 center crop.")
+
     # Lazy init solutions only when needed to avoid AttributeError if import failed partially
     mp_face_detection = None
     mp_face_mesh = None
@@ -1114,7 +1118,7 @@ def edit(project_folder="tmp", face_model="insightface", face_mode="auto", detec
     insightface_working = False
     
     # Only init InsightFace if selected or default
-    if INSIGHTFACE_AVAILABLE and (face_model == "insightface"):
+    if not fixed_center_mode and INSIGHTFACE_AVAILABLE and (face_model == "insightface"):
         try:
             print("Initializing InsightFace...")
             init_insightface()
@@ -1128,7 +1132,10 @@ def edit(project_folder="tmp", face_model="insightface", face_mode="auto", detec
     use_haar = False
     
     # If insightface failed OR user chose mediapipe, init mediapipe
-    should_use_mediapipe = (face_model == "mediapipe") or (face_model == "insightface" and not insightface_working)
+    should_use_mediapipe = not fixed_center_mode and (
+        (face_model == "mediapipe")
+        or (face_model == "insightface" and not insightface_working)
+    )
     
     if should_use_mediapipe:
         try:
@@ -1188,8 +1195,25 @@ def edit(project_folder="tmp", face_model="insightface", face_mode="auto", detec
             success = False
             detected_mode = "1" # Default if detection fails or fallback
 
+            # Fixed Center deliberately bypasses every face detector. The zoom
+            # renderer applies the same center crop to every frame, preventing
+            # no-face/face transitions from moving the virtual camera.
+            if fixed_center_mode:
+                try:
+                    generate_short_fallback(
+                        input_file,
+                        output_file,
+                        index,
+                        project_folder,
+                        final_folder,
+                        no_face_mode="zoom",
+                    )
+                    success = True
+                except Exception as e:
+                    print(f"Fixed Center processing failed for {input_filename}: {e}")
+
             # 1. Try InsightFace
-            if insightface_working:
+            if not success and insightface_working:
                 try:
                     # Capture returned mode
                     res = generate_short_insightface(input_file, output_file, index, project_folder, final_folder, face_mode=face_mode, detection_period=detection_period, 

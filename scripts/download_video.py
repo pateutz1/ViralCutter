@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import yt_dlp
 import sys
 from i18n.i18n import I18nAuto
@@ -31,34 +32,71 @@ def progress_hook(d):
     elif d['status'] == 'finished':
         print(f"[download] Download completed: {d['filename']}", flush=True)
 
+
+def _detect_js_runtimes():
+    """Prefer Node (installed on most Windows setups); fall back to Deno if present."""
+    runtimes = {}
+    node = shutil.which("node")
+    if node:
+        runtimes["node"] = {"path": node}
+    deno = shutil.which("deno")
+    if deno:
+        runtimes["deno"] = {"path": deno}
+    return runtimes
+
+
+def _base_ydl_opts(**extra):
+    """Shared yt-dlp options: JS runtime + EJS remote components, no Chrome cookie lock."""
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "remote_components": ["ejs:github"],
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        },
+        "force_ipv4": True,
+    }
+    js_runtimes = _detect_js_runtimes()
+    if js_runtimes:
+        opts["js_runtimes"] = js_runtimes
+    opts.update(extra)
+    return opts
+
+
 def download(url, base_root="VIRALS", download_subs=True, quality="best"):
-    # 1. Extract video info to get the title
     # 1. Extract video info to get the title
     print(i18n("Extracting video information..."))
     title = None
-    
-    # ... (Keep existing title extraction logic) ...
-    # Instead of repeating it effectively, I will rely on the diff to keep it or re-write it if I have to replace the whole block.
-    # Since replace_file_content works on line ranges, I should be careful.
-    # Let's assume I'm replacing the whole function body or significant parts.
-    
-    # Attempt 1: With cookies
-    try:
-        with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True, 'cookiesfrombrowser': ('chrome',)}) as ydl:
-            info = ydl.extract_info(url, download=False)
-            title = info.get('title')
-    except Exception as e:
-        try:
-            print(i18n("Warning: Failed to extract info with cookies: {}").format(e))
-        except UnicodeEncodeError:
-            print(i18n("Warning: Failed to extract info with cookies: [Encoding Error in Message]"))
+    js_runtimes = _detect_js_runtimes()
+    if js_runtimes:
+        print(f"[yt-dlp] JS runtime: {', '.join(js_runtimes.keys())}")
+    else:
+        print("[yt-dlp] WARNING: No Node/Deno found. Install Node.js 20+ for full YouTube format support.")
 
-    # Attempt 2: Without cookies
+    # Optional cookies: only if YTDLP_COOKIES_FROM_BROWSER is set (chrome|edge|firefox).
+    # Default skips browser cookies — Chrome DB copy fails on Windows when Chrome is open.
+    browser = (os.environ.get("YTDLP_COOKIES_FROM_BROWSER") or "").strip().lower()
+    if browser in ("chrome", "edge", "firefox", "brave", "opera", "chromium"):
+        try:
+            with yt_dlp.YoutubeDL(_base_ydl_opts(cookiesfrombrowser=(browser,))) as ydl:
+                info = ydl.extract_info(url, download=False)
+                title = info.get("title")
+        except Exception as e:
+            try:
+                print(i18n("Warning: Failed to extract info with cookies: {}").format(e))
+            except UnicodeEncodeError:
+                print(i18n("Warning: Failed to extract info with cookies: [Encoding Error in Message]"))
+
+    # Default / fallback: no browser cookies
     if not title:
         try:
-             with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+            with yt_dlp.YoutubeDL(_base_ydl_opts()) as ydl:
                 info = ydl.extract_info(url, download=False)
-                title = info.get('title')
+                title = info.get("title")
         except Exception as e:
             try:
                 print(i18n("Error getting video info (without cookies): {}").format(e))
@@ -121,27 +159,22 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
     selected_format = quality_map.get(quality, 'bestvideo+bestaudio/best')
     print(i18n("Configuring download quality: {} -> {}").format(quality, selected_format))
 
-    ydl_opts = {
-        'format': selected_format,
-        'overwrites': True,
-        'outtmpl': output_path_base, 
-        'postprocessor_args': [
-            '-movflags', 'faststart'
-        ],
-        'merge_output_format': 'mp4',
-        'progress_hooks': [progress_hook],
-        # Subtitle options
-        'writesubtitles': download_subs,
-        'writeautomaticsub': download_subs,
-        'subtitleslangs': ['pt.*', 'en.*', 'sp.*'], # Prioritize generic PT, EN, SP
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-        'skip_download': False,
-        'quiet': False,
-        'no_warnings': False,
-        'force_ipv4': True,
-    }
+    ydl_opts = _base_ydl_opts(
+        format=selected_format,
+        overwrites=True,
+        outtmpl=output_path_base,
+        postprocessor_args=["-movflags", "faststart"],
+        merge_output_format="mp4",
+        progress_hooks=[progress_hook],
+        writesubtitles=download_subs,
+        writeautomaticsub=download_subs,
+        subtitleslangs=["pt.*", "en.*", "sp.*"],
+        skip_download=False,
+        quiet=False,
+        no_warnings=True,
+    )
+    if browser in ("chrome", "edge", "firefox", "brave", "opera", "chromium"):
+        ydl_opts["cookiesfrombrowser"] = (browser,)
     
 
     

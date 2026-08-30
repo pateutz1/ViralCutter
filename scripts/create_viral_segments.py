@@ -19,13 +19,13 @@ if sys.stdout and hasattr(sys.stdout, 'buffer'):
 
 # Try importing optional AI libraries
 try:
-    import google.generativeai as genai
+    import google.generativeai as genai  # pyright: ignore[reportMissingImports]
     HAS_GEMINI = True
 except ImportError:
     HAS_GEMINI = False
 
 try:
-    import g4f
+    import g4f  # pyright: ignore[reportMissingImports]
     HAS_G4F = True
 except ImportError:
     HAS_G4F = False
