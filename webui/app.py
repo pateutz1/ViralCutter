@@ -165,7 +165,8 @@ CLOUDFLARE_MODELS = [
 
 WHISPER_BACKENDS = [
     'cloudflare',
-    'groq'
+    'groq',
+    'azure'
 ]
 
 

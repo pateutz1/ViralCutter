@@ -22,5 +22,12 @@
         "model": "@cf/openai/gpt-oss-120b",
         "whisper_model": "@cf/openai/whisper-large-v3-turbo",
         "chunk_size": 40000
+    },
+    "azure": {
+        "api_key": "",
+        "endpoint": "https://northeurope.api.cognitive.microsoft.com/",
+        "region": "northeurope",
+        "api_version": "2024-11-15",
+        "locales": ["en-US"]
     }
 }

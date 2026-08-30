@@ -14,7 +14,7 @@ from i18n.i18n import I18nAuto
 i18n = I18nAuto()
 
 CHUNK_SECONDS = 45
-WHISPER_BACKENDS = ("cloudflare", "groq")
+WHISPER_BACKENDS = ("cloudflare", "groq", "azure")
 
 
 def _load_api_config():
@@ -35,6 +35,8 @@ def _resolve_backend(model_name, config):
         return name
     if "groq" in name:
         return "groq"
+    if "azure" in name:
+        return "azure"
     if "cloudflare" in name or name.startswith("@cf/"):
         return "cloudflare"
     configured = (config.get("whisper_backend") or "cloudflare").strip().lower()
@@ -368,6 +370,91 @@ def _transcribe_groq_chunk(chunk_path, api_key, model_name):
     return data.get("segments") or [], data.get("language") or "en"
 
 
+def _transcribe_azure_chunk(chunk_path, api_key, endpoint, region="northeurope", api_version="2024-11-15", locales=None):
+    """Azure Speech Services Fast Transcription (Speech-to-Text)."""
+    if not api_key:
+        raise RuntimeError("Azure Speech key missing in api_config.json -> azure.api_key")
+
+    base = (endpoint or "").strip().rstrip("/")
+    if not base:
+        region = (region or "northeurope").strip()
+        base = f"https://{region}.api.cognitive.microsoft.com"
+    url = f"{base}/speechtotext/transcriptions:transcribe?api-version={api_version}"
+
+    if isinstance(locales, str) and locales.strip():
+        locale_list = [locales.strip()]
+    elif isinstance(locales, list) and locales:
+        locale_list = [str(x).strip() for x in locales if str(x).strip()]
+    else:
+        locale_list = ["en-US"]
+
+    definition = json.dumps({"locales": locale_list})
+    with open(chunk_path, "rb") as f:
+        audio_bytes = f.read()
+
+    data = _http_multipart(
+        url,
+        {"Ocp-Apim-Subscription-Key": api_key},
+        [("definition", definition)],
+        [("audio", os.path.basename(chunk_path), audio_bytes, "audio/mpeg")],
+    )
+    return _azure_speech_to_segments(data)
+
+
+def _azure_speech_to_segments(data):
+    """Convert Azure Speech Fast Transcription JSON into Whisper-like segments."""
+    phrases = data.get("phrases") or []
+    segments = []
+    language = "en"
+    for phrase in phrases:
+        if not isinstance(phrase, dict):
+            continue
+        text = (phrase.get("text") or "").strip()
+        if not text:
+            continue
+        start_ms = float(phrase.get("offsetMilliseconds") or 0)
+        dur_ms = float(phrase.get("durationMilliseconds") or 0)
+        start = start_ms / 1000.0
+        end = (start_ms + max(dur_ms, 10)) / 1000.0
+        words = []
+        for w in phrase.get("words") or []:
+            if not isinstance(w, dict):
+                continue
+            w_text = (w.get("text") or "").strip()
+            if not w_text:
+                continue
+            w_start_ms = float(w.get("offsetMilliseconds") or start_ms)
+            w_dur_ms = float(w.get("durationMilliseconds") or 0)
+            words.append({
+                "word": w_text,
+                "start": w_start_ms / 1000.0,
+                "end": (w_start_ms + max(w_dur_ms, 10)) / 1000.0,
+            })
+        locale = phrase.get("locale") or ""
+        if locale:
+            language = str(locale).split("-")[0].lower() or language
+        segments.append({"start": start, "end": end, "text": text, "words": words})
+
+    if not segments:
+        combined = data.get("combinedPhrases") or []
+        texts = []
+        for item in combined:
+            if isinstance(item, dict) and item.get("text"):
+                texts.append(item["text"].strip())
+            elif isinstance(item, str) and item.strip():
+                texts.append(item.strip())
+        full = " ".join(texts).strip()
+        if full:
+            dur_ms = float(data.get("durationMilliseconds") or 0)
+            segments.append({
+                "start": 0.0,
+                "end": max(dur_ms / 1000.0, 0.01),
+                "text": full,
+                "words": [],
+            })
+    return segments, language
+
+
 def _transcribe_audio(audio_path, backend, config):
     duration = _audio_duration(audio_path)
     print(f"Audio duration: {duration:.1f}s | backend: {backend}")
@@ -396,6 +483,16 @@ def _transcribe_audio(audio_path, backend, config):
                         raise RuntimeError("Groq API key missing in api_config.json -> groq.api_key")
                     model_name = groq_cfg.get("whisper_model") or "whisper-large-v3-turbo"
                     raw_segments, language = _transcribe_groq_chunk(chunk_path, api_key, model_name)
+                elif backend == "azure":
+                    az = config.get("azure") or {}
+                    raw_segments, language = _transcribe_azure_chunk(
+                        chunk_path,
+                        az.get("api_key") or "",
+                        az.get("endpoint") or "",
+                        az.get("region") or "northeurope",
+                        az.get("api_version") or "2024-11-15",
+                        az.get("locales") or az.get("locale") or ["en-US"],
+                    )
                 else:
                     cf_cfg = config.get("cloudflare") or {}
                     account_id = cf_cfg.get("account_id") or ""

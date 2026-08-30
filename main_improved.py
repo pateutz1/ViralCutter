@@ -108,7 +108,7 @@ def main():
     parser.add_argument("--burn-only", action="store_true", help="Skip processing and only burn subtitles")
     parser.add_argument("--min-duration", type=int, default=15, help="Minimum segment duration (seconds)")
     parser.add_argument("--max-duration", type=int, default=90, help="Maximum segment duration (seconds)")
-    parser.add_argument("--model", default="cloudflare", help="Whisper backend: cloudflare or groq (whisper-large-v3-turbo)")
+    parser.add_argument("--model", default="cloudflare", help="Whisper backend: cloudflare, groq, or azure (Speech Fast Transcription)")
     
     parser.add_argument("--ai-backend", choices=["manual", "gemini", "g4f", "groq", "cloudflare"], help="AI backend for viral analysis")
     parser.add_argument("--api-key", help="Gemini or Groq API Key")
