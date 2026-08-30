@@ -670,6 +670,21 @@ def _fallback_timeline_segments(count, min_duration, max_duration, video_duratio
     return {"segments": segments}
 
 
+def _fallback_visual_segments(project_folder, count, min_duration, max_duration, video_duration):
+    try:
+        from scripts.visual_segment_selector import select_visual_segments
+        return select_visual_segments(
+            project_folder,
+            count,
+            min_duration,
+            max_duration,
+            video_duration=video_duration,
+        )
+    except Exception as e:
+        print(f"[WARN] Visual scoring failed: {e}. Using evenly spaced timeline cuts.")
+        return _fallback_timeline_segments(count, min_duration, max_duration, video_duration)
+
+
 def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode="manual", api_key=None, project_folder="tmp", chunk_size_arg=None, model_name_arg=None):
     quantidade_de_virals = num_segments
 
@@ -678,8 +693,8 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
         transcript_segments = load_transcript(project_folder)
     except Exception as e:
         duration = _video_duration(project_folder)
-        print(f"[WARN] {e} Using timeline cuts.")
-        return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
+        print(f"[WARN] {e} Using visual selection.")
+        return _fallback_visual_segments(project_folder, quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
 
     # 2. Pre-process Content
     formatted_content = preprocess_transcript_for_ai(transcript_segments)
@@ -687,8 +702,8 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
     speech_sec = _speech_seconds(transcript_segments)
     if speech_sec < float(tempo_minimo):
         duration = _video_duration(project_folder, transcript_segments)
-        print(f"[WARN] Transcript has only {speech_sec:.1f}s of speech (< {tempo_minimo}s). Using timeline cuts.")
-        return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
+        print(f"[WARN] Transcript has only {speech_sec:.1f}s of speech (< {tempo_minimo}s). Using visual selection.")
+        return _fallback_visual_segments(project_folder, quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
 
     # Load Config and Prompt
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -966,5 +981,5 @@ OUTPUT JSON ONLY:
     if result.get("segments"):
         return result
     duration = _video_duration(project_folder, transcript_segments)
-    print("[WARN] Model returned 0 speech segments. Using timeline cuts.")
-    return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
+    print("[WARN] Model returned 0 speech segments. Using visual selection.")
+    return _fallback_visual_segments(project_folder, quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
