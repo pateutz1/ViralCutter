@@ -13,7 +13,7 @@ scripts_package.__path__ = [str(PROJECT_ROOT / "scripts")]
 sys.modules["scripts"] = scripts_package
 
 from scripts import create_viral_segments
-from scripts.visual_segment_selector import _rank_windows, _robust_normalize
+from scripts.visual_segment_selector import _rank_windows, _robust_normalize, _text_frame_risk
 
 
 class VisualSegmentSelectorTests(unittest.TestCase):
@@ -66,6 +66,74 @@ class VisualSegmentSelectorTests(unittest.TestCase):
         self.assertEqual(len(result["segments"]), 1)
         self.assertAlmostEqual(result["segments"][0]["duration"], 90.0)
 
+
+    def test_text_risk_flags_wide_and_corner_text_outside_crop(self):
+        import cv2
+
+        blank = np.zeros((180, 320), dtype=np.uint8)
+        wide = blank.copy()
+        corner = blank.copy()
+        centered = blank.copy()
+        cv2.putText(wide, "I HOPE WE GET A STUPID CAT", (2, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 2, cv2.LINE_AA)
+        cv2.putText(corner, "@OWNER", (235, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.45, 255, 1, cv2.LINE_AA)
+        cv2.putText(centered, "CAT", (135, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 255, 2, cv2.LINE_AA)
+
+        self.assertEqual(_text_frame_risk(blank, cv2, np), 0.0)
+        self.assertGreater(_text_frame_risk(wide, cv2, np), 0.25)
+        self.assertGreater(_text_frame_risk(corner, cv2, np), 0.18)
+        self.assertLess(_text_frame_risk(centered, cv2, np), 0.18)
+
+    def test_rank_windows_prefers_text_safe_activity_window(self):
+        times = np.arange(0, 240, dtype=np.float32)
+        activity = np.zeros_like(times)
+        activity[(times >= 0) & (times < 60)] = 1.0
+        activity[(times >= 120) & (times < 180)] = 0.7
+        text_risks = np.zeros_like(times)
+        text_risks[(times >= 0) & (times < 60)] = 0.5
+
+        result = _rank_windows(
+            times,
+            activity,
+            60,
+            240,
+            1,
+            np,
+            pad=0,
+            stride=60,
+            text_risks=text_risks,
+            max_text_frame_percent=15,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["start"], 120.0)
+        self.assertTrue(result[0]["text_safe"])
+
+    @mock.patch("scripts.create_viral_segments._fallback_visual_segments")
+    @mock.patch("scripts.create_viral_segments._video_duration", return_value=240)
+    def test_text_safe_mode_bypasses_transcript_ai_and_forwards_limit(self, _duration, fallback):
+        fallback.return_value = {"segments": [{"start_time": 120.0, "duration": 90.0}]}
+
+        result = create_viral_segments.create(
+            1,
+            True,
+            "",
+            90,
+            90,
+            project_folder="project",
+            text_safe_selection=True,
+            max_text_frame_percent=12,
+        )
+
+        self.assertEqual(result, fallback.return_value)
+        fallback.assert_called_once_with(
+            "project",
+            1,
+            90,
+            90,
+            240,
+            text_safe_selection=True,
+            max_text_frame_percent=12,
+        )
 
 if __name__ == "__main__":
     unittest.main()

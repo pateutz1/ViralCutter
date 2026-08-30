@@ -670,23 +670,67 @@ def _fallback_timeline_segments(count, min_duration, max_duration, video_duratio
     return {"segments": segments}
 
 
-def _fallback_visual_segments(project_folder, count, min_duration, max_duration, video_duration):
+def _fallback_visual_segments(
+    project_folder,
+    count,
+    min_duration,
+    max_duration,
+    video_duration,
+    text_safe_selection=False,
+    max_text_frame_percent=15.0,
+):
     try:
         from scripts.visual_segment_selector import select_visual_segments
+        selector_options = {}
+        if text_safe_selection:
+            selector_options.update({
+                "text_safe": True,
+                "max_text_frame_percent": max_text_frame_percent,
+            })
         return select_visual_segments(
             project_folder,
             count,
             min_duration,
             max_duration,
             video_duration=video_duration,
+            **selector_options,
         )
     except Exception as e:
         print(f"[WARN] Visual scoring failed: {e}. Using evenly spaced timeline cuts.")
         return _fallback_timeline_segments(count, min_duration, max_duration, video_duration)
 
 
-def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode="manual", api_key=None, project_folder="tmp", chunk_size_arg=None, model_name_arg=None):
+def create(
+    num_segments,
+    viral_mode,
+    themes,
+    tempo_minimo,
+    tempo_maximo,
+    ai_mode="manual",
+    api_key=None,
+    project_folder="tmp",
+    chunk_size_arg=None,
+    model_name_arg=None,
+    text_safe_selection=False,
+    max_text_frame_percent=15.0,
+):
     quantidade_de_virals = num_segments
+
+    if text_safe_selection:
+        duration = _video_duration(project_folder)
+        print(
+            f"[TEXT SAFE] Selecting visual segments with at most "
+            f"{float(max_text_frame_percent):.1f}% crop-risk frames."
+        )
+        return _fallback_visual_segments(
+            project_folder,
+            quantidade_de_virals,
+            tempo_minimo,
+            tempo_maximo,
+            duration,
+            text_safe_selection=True,
+            max_text_frame_percent=max_text_frame_percent,
+        )
 
     # 1. Load Transcript
     try:

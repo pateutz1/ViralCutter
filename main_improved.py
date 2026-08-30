@@ -108,6 +108,8 @@ def main():
     parser.add_argument("--burn-only", action="store_true", help="Skip processing and only burn subtitles")
     parser.add_argument("--min-duration", type=int, default=15, help="Minimum segment duration (seconds)")
     parser.add_argument("--max-duration", type=int, default=90, help="Maximum segment duration (seconds)")
+    parser.add_argument("--text-safe-selection", action="store_true", help="Prefer visual segments whose text/watermarks remain inside a centered 9:16 crop")
+    parser.add_argument("--max-text-frame-percent", type=float, default=15.0, help="Maximum preferred percentage of crop-risk text frames (0-100)")
     parser.add_argument("--model", default="cloudflare", help="Whisper backend: cloudflare, groq, or azure (Speech Fast Transcription)")
     
     parser.add_argument("--ai-backend", choices=["manual", "gemini", "g4f", "groq", "cloudflare"], help="AI backend for viral analysis")
@@ -227,7 +229,10 @@ def main():
         project_folder_anticipated = os.path.dirname(input_video)
         viral_segments_file = os.path.join(project_folder_anticipated, "viral_segments.txt")
         
-        if os.path.exists(viral_segments_file):
+        if args.text_safe_selection and os.path.exists(viral_segments_file):
+             print("[TEXT SAFE] Ignoring cached viral_segments.txt and recalculating selection.")
+
+        if os.path.exists(viral_segments_file) and not args.text_safe_selection:
              print(i18n("\nExisting viral segments found: {}").format(viral_segments_file))
              if args.skip_prompts:
                  use_existing_json = 'yes'
@@ -441,7 +446,7 @@ def main():
             if not viral_segments:
                 # Late check for new downloads that already have JSON (e.g. repeated URL)
                 viral_segments_file_late = os.path.join(project_folder, "viral_segments.txt")
-                if os.path.exists(viral_segments_file_late):
+                if os.path.exists(viral_segments_file_late) and not args.text_safe_selection:
                     print(i18n("Found existing viral segments file at {}").format(viral_segments_file_late))
                     if args.skip_prompts:
                         print(i18n("Skipping prompts enabled. Loading existing segments."))
@@ -470,7 +475,9 @@ def main():
                         api_key=api_key,
                         project_folder=project_folder,
                         chunk_size_arg=args.chunk_size,
-                        model_name_arg=args.ai_model_name
+                        model_name_arg=args.ai_model_name,
+                        text_safe_selection=args.text_safe_selection,
+                        max_text_frame_percent=args.max_text_frame_percent,
                     )
                 
                 if not viral_segments or not viral_segments.get("segments"):
@@ -522,7 +529,7 @@ def main():
             if os.path.exists(cuts_folder) and os.listdir(cuts_folder):
                 print(i18n("\nExisting cuts found in: {}").format(cuts_folder))
                 if args.skip_prompts:
-                    cut_again_resp = 'no'
+                    cut_again_resp = 'yes' if args.text_safe_selection else 'no'
                 else:
                     cut_again_resp = input(i18n("Cuts already exist. Cut again? (yes/no) [default: no]: ")).strip().lower()
                 
@@ -696,7 +703,9 @@ def main():
                 "video_config": {
                     "min_duration": args.min_duration,
                     "max_duration": args.max_duration,
-                    "whisper_model": args.model
+                    "whisper_model": args.model,
+                    "text_safe_selection": args.text_safe_selection,
+                    "max_text_frame_percent": args.max_text_frame_percent
                 },
                 "subtitle_config": current_sub_config
             }

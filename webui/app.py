@@ -183,7 +183,7 @@ def apply_experimental_preset(preset_name):
 # Subtitle logic moved to subtitle_handler.py
 
 
-def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode, 
+def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, text_safe_selection, max_text_frame_percent, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode,
                      face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone, focus_active_speaker, active_speaker_mar, active_speaker_score_diff, include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
                      enable_captions, use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
                      h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target):
@@ -243,6 +243,9 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
     if themes: cmd.extend(["--themes", themes])
     cmd.extend(["--min-duration", str(int(min_duration))])
     cmd.extend(["--max-duration", str(int(max_duration))])
+    if text_safe_selection:
+        cmd.append("--text-safe-selection")
+        cmd.extend(["--max-text-frame-percent", str(float(max_text_frame_percent))])
     cmd.extend(["--model", model])
     cmd.extend(["--ai-backend", ai_backend])
     if api_key: cmd.extend(["--api-key", api_key])
@@ -432,6 +435,20 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     with gr.Row():
                         min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=15)
                         max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=90)
+                    with gr.Row():
+                        text_safe_selection_input = gr.Checkbox(
+                            label=i18n("Text Safe Selection"),
+                            value=False,
+                            info=i18n("Prefer segments with fewer captions or watermarks clipped by a centered 9:16 crop."),
+                        )
+                        max_text_frame_percent_input = gr.Slider(
+                            label=i18n("Maximum Crop-Risk Text Frames (%)"),
+                            minimum=0,
+                            maximum=100,
+                            value=15,
+                            step=1,
+                            info=i18n("If no segment meets this limit, the lowest-risk segment is selected."),
+                        )
                 with gr.Column(scale=1):
                     with gr.Row():
                         ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value="gemini", scale=2)
@@ -646,7 +663,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
              
              # MUST pass all all new inputs to the run function
              start_btn.click(run_viral_cutter, inputs=[
-                 input_source, project_selector, url_input, video_upload, segments_input, viral_input, themes_input, min_dur_input, max_dur_input, 
+                 input_source, project_selector, url_input, video_upload, segments_input, viral_input, themes_input, min_dur_input, max_dur_input, text_safe_selection_input, max_text_frame_percent_input,
                  model_input, ai_backend_input, api_key_input, ai_model_input, chunk_size_input, 
                  workflow_input, face_model_input, face_mode_input, face_detect_interval_input, no_face_mode_input, 
                  face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input, focus_active_speaker_input, 
