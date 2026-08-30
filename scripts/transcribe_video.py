@@ -304,6 +304,11 @@ def _http_multipart(url, headers, fields, files, timeout=180):
     body.write(f"--{boundary}--\r\n".encode())
     data = body.getvalue()
     req = urllib.request.Request(url, data=data, method="POST")
+    # Groq's edge rejects urllib's default Python-urllib signature with
+    # Cloudflare error 1010 before the request reaches the API. Send an
+    # explicit application identity and response type for multipart calls.
+    req.add_header("User-Agent", "ViralCutter/1.0")
+    req.add_header("Accept", "application/json")
     for key, value in headers.items():
         req.add_header(key, value)
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
