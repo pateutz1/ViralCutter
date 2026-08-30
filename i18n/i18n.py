@@ -11,7 +11,10 @@ def load_language_list(language):
 
 class I18nAuto:
     def __init__(self, language=None):
-        if language in ["Auto", None]:
+        # Default UI language is English. Pass language="Auto" to follow the OS locale.
+        if language in [None, ""]:
+            language = "en_US"
+        elif language == "Auto":
             language = locale.getdefaultlocale()[
                 0
             ]  # getlocale can't identify the system's language ((None, None))

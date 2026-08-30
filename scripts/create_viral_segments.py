@@ -158,7 +158,7 @@ def clean_json_response(response_text):
                     break
                     
             if found_segments:
-                print(f"[INFO] Recuperado {len(found_segments)} segmentos de JSON truncado.")
+                print(f"[INFO] Recovered {len(found_segments)} segments from truncated JSON.")
                 return {"segments": found_segments}
     except:
         pass
