@@ -64,3 +64,45 @@ def cut_json_transcript(input_json_path, output_json_path, start_time, end_time)
         
     except Exception as e:
         print(f"Error cutting JSON: {e}")
+
+def process_segment_ranges(data, source_ranges):
+    """Cut several source ranges and remap their timestamps onto one montage timeline."""
+    combined = []
+    output_offset = 0.0
+    for source in source_ranges:
+        start = float(source["start_time"])
+        duration = float(source["duration"])
+        part = process_segments(data, start, start + duration)
+        for segment in part.get("segments", []):
+            shifted = segment.copy()
+            shifted["start"] = float(shifted.get("start", 0.0)) + output_offset
+            shifted["end"] = float(shifted.get("end", 0.0)) + output_offset
+            if "words" in shifted:
+                shifted["words"] = [
+                    {
+                        **word,
+                        "start": float(word.get("start", 0.0)) + output_offset,
+                        "end": float(word.get("end", 0.0)) + output_offset,
+                    }
+                    for word in shifted["words"]
+                ]
+            combined.append(shifted)
+        output_offset += duration
+    return {"segments": combined}
+
+
+def cut_json_transcript_ranges(input_json_path, output_json_path, source_ranges):
+    """Save a transcript remapped for a montage assembled from source ranges."""
+    if not os.path.exists(input_json_path):
+        print(f"Warning: {input_json_path} not found. Could not generate cut JSON.")
+        return
+
+    try:
+        with open(input_json_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        new_data = process_segment_ranges(data, source_ranges)
+        with open(output_json_path, "w", encoding="utf-8") as file:
+            json.dump(new_data, file, indent=2, ensure_ascii=False)
+        print(f"Montage subtitle JSON generated: {output_json_path}")
+    except Exception as error:
+        print(f"Error cutting montage JSON: {error}")

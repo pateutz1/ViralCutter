@@ -23,6 +23,68 @@ def _encoder_works(encoder, preset):
     except OSError:
         return False
 
+def _validated_source_ranges(segment):
+    ranges = []
+    for source in segment.get("source_ranges") or []:
+        try:
+            start = float(source["start_time"])
+            duration = float(source["duration"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(f"Invalid Text Safe source range: {source!r}")
+        if start < 0 or duration <= 0:
+            raise ValueError(f"Invalid Text Safe source range: {source!r}")
+        ranges.append({"start_time": start, "duration": duration})
+    return ranges
+
+
+def _input_has_audio(input_file):
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=index", "-of", "csv=p=0", input_file,
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _build_montage_command(input_file, output_path, source_ranges, codec, has_audio=True):
+    filters = []
+    concat_inputs = []
+    for index, source in enumerate(source_ranges):
+        start = source["start_time"]
+        duration = source["duration"]
+        filters.append(
+            f"[0:v]trim=start={start:.6f}:duration={duration:.6f},"
+            f"setpts=PTS-STARTPTS[v{index}]"
+        )
+        concat_inputs.append(f"[v{index}]")
+        if has_audio:
+            filters.append(
+                f"[0:a]atrim=start={start:.6f}:duration={duration:.6f},"
+                f"asetpts=PTS-STARTPTS[a{index}]"
+            )
+            concat_inputs.append(f"[a{index}]")
+
+    filters.append(
+        "".join(concat_inputs)
+        + f"concat=n={len(source_ranges)}:v=1:a={1 if has_audio else 0}"
+        + ("[vout][aout]" if has_audio else "[vout]")
+    )
+    command = [
+        "ffmpeg", "-y", "-loglevel", "error", "-hide_banner", "-i", input_file,
+        "-filter_complex", ";".join(filters), "-map", "[vout]", "-c:v", codec,
+    ]
+    if codec == "h264_nvenc":
+        command.extend(["-preset", "p1", "-b:v", "5M"])
+    else:
+        command.extend(["-preset", "ultrafast", "-crf", "23"])
+    if has_audio:
+        command.extend(["-map", "[aout]", "-c:a", "aac", "-b:a", "128k"])
+    else:
+        command.append("-an")
+    total_duration = sum(source["duration"] for source in source_ranges)
+    command.extend(["-t", f"{total_duration:.6f}", "-movflags", "+faststart", output_path])
+    return command
+
 def cut(segments, project_folder="tmp", skip_video=False):
 
     def check_nvenc_support():
@@ -61,6 +123,7 @@ def cut(segments, project_folder="tmp", skip_video=False):
         for i, segment in enumerate(segments):
             start_time = segment.get("start_time", "00:00:00")
             duration = segment.get("duration", 0)
+            source_ranges = _validated_source_ranges(segment)
 
             # Heuristic for duration:
             if isinstance(duration, (int, float)):
@@ -117,11 +180,23 @@ def cut(segments, project_folder="tmp", skip_video=False):
 
             print(f"Processing segment {i+1}/{len(segments)}")
             print(f"Start time: {start_time}, Duration: {duration}")
+            if source_ranges:
+                print(f"Text Safe montage: {len(source_ranges)} clean source range(s)")
             # print(f"Executing command: {' '.join(command)}")
 
             # VIDEO GENERATION
             if not skip_video:
+                montage_has_audio = _input_has_audio(input_file) if source_ranges else False
+
                 def build_command(codec):
+                    if source_ranges:
+                        return _build_montage_command(
+                            input_file,
+                            output_path,
+                            source_ranges,
+                            codec,
+                            has_audio=montage_has_audio,
+                        )
                     command = [
                         "ffmpeg", "-y", "-loglevel", "error", "-hide_banner",
                         "-ss", start_time_str, "-i", input_file,
@@ -170,7 +245,10 @@ def cut(segments, project_folder="tmp", skip_video=False):
             json_output_filename = f"{base_name}_processed.json"
             json_output_path = os.path.join(subs_folder, json_output_filename)
             
-            cut_json.cut_json_transcript(input_json_path, json_output_path, start_time_seconds, end_time_seconds)
+            if source_ranges:
+                cut_json.cut_json_transcript_ranges(input_json_path, json_output_path, source_ranges)
+            else:
+                cut_json.cut_json_transcript(input_json_path, json_output_path, start_time_seconds, end_time_seconds)
             # --------------------
 
             print("\n" + "="*50 + "\n")

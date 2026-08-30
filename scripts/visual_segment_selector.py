@@ -150,6 +150,103 @@ def _rank_windows(
     return selected
 
 
+def _build_text_safe_montages(
+    sample_times,
+    activity_scores,
+    text_risks,
+    clip_len,
+    count,
+    video_duration,
+    np,
+    min_range_duration=3.0,
+    guard_seconds=0.5,
+):
+    """Build exact-duration montages from clean, non-overlapping source ranges."""
+    times = np.asarray(sample_times, dtype=np.float32)
+    activity = np.asarray(activity_scores, dtype=np.float32)
+    risks = np.asarray(text_risks, dtype=np.float32)
+    if times.size < 2 or activity.size != times.size or risks.size != times.size:
+        return []
+
+    sample_interval = float(np.median(np.diff(times)))
+    clean = risks < TEXT_RISK_THRESHOLD
+    runs = []
+    run_start = None
+    for index, is_clean in enumerate(np.append(clean, False)):
+        if is_clean and run_start is None:
+            run_start = index
+        elif not is_clean and run_start is not None:
+            run_end = index
+            start = float(times[run_start])
+            end = min(float(video_duration), float(times[run_end - 1]) + sample_interval)
+            if run_start > 0:
+                start += float(guard_seconds)
+            if run_end < times.size:
+                end -= float(guard_seconds)
+            duration = max(0.0, end - start)
+            if duration >= float(min_range_duration):
+                score = float(activity[run_start:run_end].mean())
+                runs.append({"start": start, "duration": duration, "score": score})
+            run_start = None
+
+    required = float(clip_len) * max(1, int(count or 1))
+    if sum(item["duration"] for item in runs) + 1e-6 < required:
+        return []
+
+    ranked = sorted(
+        runs,
+        key=lambda item: (
+            item["score"] + 0.15 * min(1.0, item["duration"] / clip_len),
+            item["duration"],
+        ),
+        reverse=True,
+    )
+    chosen = []
+    remaining = required
+    for item in ranked:
+        if remaining <= 1e-6:
+            break
+        take = min(item["duration"], remaining)
+        chosen.append({"start": item["start"], "duration": take})
+        remaining -= take
+
+    if remaining > 1e-3:
+        return []
+
+    if chosen and chosen[-1]["duration"] < float(min_range_duration):
+        deficit = float(min_range_duration) - chosen[-1]["duration"]
+        for previous in reversed(chosen[:-1]):
+            reducible = max(0.0, previous["duration"] - float(min_range_duration))
+            moved = min(deficit, reducible)
+            previous["duration"] -= moved
+            chosen[-1]["duration"] += moved
+            deficit -= moved
+            if deficit <= 1e-6:
+                break
+        if deficit > 1e-6:
+            return []
+
+    chosen.sort(key=lambda item: item["start"])
+    montages = []
+    current = []
+    current_duration = 0.0
+    for item in chosen:
+        source_start = item["start"]
+        source_remaining = item["duration"]
+        while source_remaining > 1e-6:
+            room = float(clip_len) - current_duration
+            take = min(source_remaining, room)
+            current.append({"start_time": source_start, "duration": take})
+            current_duration += take
+            source_start += take
+            source_remaining -= take
+            if current_duration >= float(clip_len) - 1e-6:
+                montages.append(current)
+                current = []
+                current_duration = 0.0
+
+    return montages if len(montages) == max(1, int(count or 1)) else []
+
 def _sample_visual_activity(video_path, video_duration, sample_interval, cv2, np, text_safe=False):
     times = []
     motions = []
@@ -286,6 +383,47 @@ def select_visual_segments(
     if not windows:
         raise RuntimeError("Visual scoring produced no candidate windows")
 
+    if text_safe and not all(window.get("text_safe", False) for window in windows):
+        montages = _build_text_safe_montages(
+            times,
+            combined,
+            text_risks,
+            clip_len,
+            count,
+            video_duration,
+            np,
+        )
+        if not montages:
+            best_percent = min(100.0 * window.get("text_frame_ratio", 1.0) for window in windows)
+            raise RuntimeError(
+                "Text Safe Selection could not collect enough clean footage for "
+                f"{max(1, int(count or 1))} x {clip_len:.1f}s. "
+                f"Best continuous window was {best_percent:.1f}% crop-risk frames. "
+                "Use a shorter duration or a higher text-risk limit."
+            )
+        windows = [
+            {
+                "start": ranges[0]["start_time"],
+                "end": ranges[-1]["start_time"] + ranges[-1]["duration"],
+                "score": float(np.mean([
+                    combined[
+                        (times >= source["start_time"])
+                        & (times < source["start_time"] + source["duration"])
+                    ].mean()
+                    for source in ranges
+                ])),
+                "text_safe": True,
+                "text_frame_ratio": 0.0,
+                "text_risk": 0.0,
+                "source_ranges": ranges,
+            }
+            for ranges in montages
+        ]
+        print(
+            f"[TEXT SAFE] No continuous window met the limit; built {len(windows)} "
+            "clean montage(s) from multiple source ranges."
+        )
+
     segments = []
     for index, window in enumerate(windows, start=1):
         score_100 = int(round(60 + 39 * max(0.0, min(1.0, window["score"]))))
@@ -307,6 +445,12 @@ def select_visual_segments(
             "visual_score": round(window["score"], 4),
             "duration": window["end"] - window["start"],
         }
+        if window.get("source_ranges"):
+            segment["duration"] = float(clip_len)
+            segment["source_ranges"] = window["source_ranges"]
+            segment["title"] = f"Text Safe Highlight {index}"
+            segment["hook"] = "Text-safe visual montage"
+            segment["reasoning"] += " Clean source ranges were joined to preserve the requested duration."
         if text_safe:
             segment.update({
                 "text_safe": bool(window.get("text_safe", False)),
