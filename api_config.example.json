@@ -3,8 +3,8 @@
     "whisper_backend": "cloudflare",
     "gemini": {
         "api_key": "",
-        "model": "gemini-2.5-flash",
-        "chunk_size": 20000
+        "model": "gemini-3.7-flash",
+        "chunk_size": 70000
     },
     "g4f": {
         "model": "gpt-4o-mini",

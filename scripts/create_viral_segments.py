@@ -193,7 +193,7 @@ def preprocess_transcript_for_ai(segments):
 
     return full_text.strip()
 
-def call_gemini(prompt, api_key, model_name='gemini-2.5-flash-lite-preview-09-2025'):
+def call_gemini(prompt, api_key, model_name='gemini-3.7-flash'):
     if not HAS_GEMINI:
         raise ImportError("The 'google-generativeai' library is not installed. Install with: pip install google-generativeai")
     
@@ -714,8 +714,8 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
         "selected_api": "gemini",
         "gemini": {
             "api_key": "",
-            "model": "gemini-2.5-flash-lite-preview-09-2025",
-            "chunk_size": 15000
+            "model": "gemini-3.7-flash",
+            "chunk_size": 70000
         },
         "g4f": {
             "model": "gpt-4o-mini",
@@ -747,15 +747,23 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
             print(f"Error reading api_config.json: {e}")
 
     # Config Vars
-    current_chunk_size = 15000
+    current_chunk_size = 70000
     model_name = ""
     
     if ai_mode == "gemini":
-        cfg_chunk = config["gemini"].get("chunk_size", 15000)
+        cfg_chunk = config["gemini"].get("chunk_size", 70000)
         current_chunk_size = chunk_size_arg if chunk_size_arg and int(chunk_size_arg) > 0 else cfg_chunk
-        cfg_model = config["gemini"].get("model", "gemini-2.5-flash-lite-preview-09-2025")
+        cfg_model = config["gemini"].get("model", "gemini-3.7-flash")
         model_name = model_name_arg if model_name_arg else cfg_model
         if not api_key: api_key = config["gemini"].get("api_key", "")
+        # Pro models: shrink chunk unless caller overrode it
+        if (
+            model_name
+            and "pro" in model_name.lower()
+            and "flash" not in model_name.lower()
+            and not (chunk_size_arg and int(chunk_size_arg) > 0)
+        ):
+            current_chunk_size = min(int(current_chunk_size), 20000)
             
     elif ai_mode == "g4f":
         cfg_chunk = config["g4f"].get("chunk_size", 2000)

@@ -129,14 +129,9 @@ def kill_process():
     return i18n("No process running.")
 
 GEMINI_MODELS = [
-    'gemini-3-pro-preview',
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-preview-09-2025',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-flash-lite-preview-09-2025',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite'
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash',
 ]
 
 G4F_MODELS = [
@@ -444,7 +439,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     
                     # New Dynamic Inputs
                     with gr.Row():
-                        ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=GEMINI_MODELS[1], allow_custom_value=True, visible=True, scale=5)
+                        ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=GEMINI_MODELS[0], allow_custom_value=True, visible=True, scale=5)
                         chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=70000, precision=0, scale=2)
                     
                     def update_ai_ui(backend):
@@ -456,7 +451,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                         
                         if backend == "gemini":
                             new_choices = GEMINI_MODELS
-                            new_val = GEMINI_MODELS[1]
+                            new_val = GEMINI_MODELS[0]
                             new_chunk = 70000
                         elif backend == "g4f":
                             new_choices = G4F_MODELS
@@ -478,6 +473,14 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                         )
 
                     ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, chunk_size_input])
+
+                    def update_gemini_chunk(model_name):
+                        # Free-tier Pro has only 32k TPM — keep chunks smaller.
+                        if model_name and "pro" in str(model_name).lower() and "flash" not in str(model_name).lower():
+                            return gr.update(value=20000)
+                        return gr.update(value=70000)
+
+                    ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input)
 
                     model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value="cloudflare")
                     enable_captions_input = gr.Checkbox(
