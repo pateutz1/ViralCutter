@@ -5,6 +5,9 @@ import sys
 import time
 import ast
 import io
+import subprocess
+import urllib.request
+import urllib.error
 
 # Configura stdout para evitar erros de encoding no Windows (substitui caracteres inválidos por ?)
 if sys.stdout and hasattr(sys.stdout, 'buffer'):
@@ -26,12 +29,6 @@ try:
     HAS_G4F = True
 except ImportError:
     HAS_G4F = False
-
-try:
-    from llama_cpp import Llama
-    HAS_LLAMA_CPP = True
-except ImportError:
-    HAS_LLAMA_CPP = False
 
 def clean_json_response(response_text):
     """
@@ -279,6 +276,134 @@ def call_g4f(prompt, model_name="gpt-4o-mini"):
     print(f"Falha crítica após {max_retries} tentativas no G4F.")
     return "{}"
 
+def _http_json(url, headers, payload, timeout=180):
+    merged = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ViralCutter/1.0",
+        "Accept": "application/json",
+    }
+    merged.update(headers)
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=merged, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {e.code}: {body}") from e
+
+def _collect_text_parts(value):
+    if isinstance(value, str) and value.strip():
+        return [value]
+    if isinstance(value, list):
+        parts = []
+        for part in value:
+            if isinstance(part, str) and part.strip():
+                parts.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text") or part.get("content")
+                parts.extend(_collect_text_parts(text))
+        return parts
+    return []
+
+def _extract_chat_text(data):
+    if isinstance(data, str):
+        return data
+    choices = data.get("choices")
+    if isinstance(choices, list) and choices:
+        msg = choices[0].get("message") or {}
+        for key in ("content", "reasoning", "text"):
+            parts = _collect_text_parts(msg.get(key))
+            if parts:
+                return "\n".join(parts)
+        if choices[0].get("text"):
+            return choices[0]["text"]
+    result = data.get("result", data)
+    if isinstance(result, str):
+        return result
+    if isinstance(result, dict):
+        for key in ("response", "content", "text", "reasoning"):
+            if result.get(key):
+                parts = _collect_text_parts(result.get(key))
+                if parts:
+                    return "\n".join(parts)
+        output = result.get("output")
+        if isinstance(output, list):
+            texts = []
+            for item in output:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "reasoning":
+                    continue
+                texts.extend(_collect_text_parts(item.get("content") or item.get("text")))
+            if texts:
+                return "\n".join(texts)
+    return ""
+
+def call_groq(prompt, api_key, model_name="openai/gpt-oss-120b"):
+    if not api_key:
+        raise ValueError("Groq API key is required")
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that outputs only JSON."},
+        {"role": "user", "content": prompt},
+    ]
+    payloads = [
+        {"model": model_name, "messages": messages, "temperature": 0.4, "max_completion_tokens": 4096, "reasoning_effort": "low"},
+        {"model": model_name, "messages": messages, "temperature": 0.4, "max_tokens": 4096},
+    ]
+    last_error = None
+    for payload in payloads:
+        try:
+            data = _http_json(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                payload,
+            )
+            text = _extract_chat_text(data)
+            if text.strip():
+                return text
+            raise ValueError("Empty Groq response")
+        except Exception as e:
+            last_error = e
+            print(f"[WARN] Groq error: {e}")
+    print(f"Falha após max retries no Groq: {last_error}")
+    return "{}"
+
+def call_cloudflare(prompt, account_id, api_token, model_name="@cf/openai/gpt-oss-120b"):
+    if not account_id or not api_token:
+        raise ValueError("Cloudflare account_id and api_token are required")
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that outputs only JSON."},
+        {"role": "user", "content": prompt},
+    ]
+    headers = {"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"}
+    attempts = [
+        (
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions",
+            {"model": model_name, "messages": messages, "temperature": 0.4, "max_tokens": 4096, "reasoning_effort": "low"},
+        ),
+        (
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_name}",
+            {"messages": messages, "max_tokens": 4096, "temperature": 0.4, "reasoning": {"effort": "low"}},
+        ),
+    ]
+    last_error = None
+    for url, payload in attempts:
+        try:
+            data = _http_json(url, headers, payload)
+            if data.get("success") is False:
+                raise RuntimeError(f"Cloudflare error: {data.get('errors')}")
+            text = _extract_chat_text(data)
+            if text.strip():
+                return text
+            keys = list(data.keys()) if isinstance(data, dict) else type(data).__name__
+            result_keys = list((data.get("result") or {}).keys()) if isinstance(data, dict) else []
+            raise ValueError(f"Empty Cloudflare response keys={keys} result_keys={result_keys}")
+        except Exception as e:
+            last_error = e
+            print(f"[WARN] Cloudflare LLM error: {e}")
+    print(f"Falha após max retries no Cloudflare: {last_error}")
+    return "{}"
+
 def load_transcript(project_folder):
     """Parses input.tsv or input.srt from the project folder."""
     input_tsv = os.path.join(project_folder, 'input.tsv')
@@ -498,15 +623,72 @@ def process_segments(raw_segments, transcript_segments, min_duration, max_durati
     return final_result
 
 
+def _speech_seconds(transcript_segments):
+    return sum(max(0.0, float(s.get("end", 0)) - float(s.get("start", 0))) for s in transcript_segments)
+
+
+def _video_duration(project_folder, transcript_segments=None):
+    video = os.path.join(project_folder, "input.mp4")
+    if os.path.exists(video):
+        try:
+            out = subprocess.check_output(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video],
+                text=True,
+            )
+            value = float(out.strip())
+            if value > 0:
+                return value
+        except Exception as e:
+            print(f"[WARN] ffprobe duration failed: {e}")
+    if transcript_segments:
+        return max((float(s.get("end", 0)) for s in transcript_segments), default=0.0)
+    return 0.0
+
+
+def _fallback_timeline_segments(count, min_duration, max_duration, video_duration):
+    count = max(1, int(count or 1))
+    if video_duration <= 0:
+        return {"segments": []}
+    clip_len = min(float(max_duration), max(float(min_duration), 45.0), video_duration)
+    pad = min(5.0, video_duration * 0.02)
+    usable = max(clip_len, video_duration - pad)
+    step = (usable - clip_len) / (count - 1) if count > 1 else 0
+    segments = []
+    for i in range(count):
+        start = pad + i * step if count > 1 else max(0.0, (video_duration - clip_len) / 3.0)
+        end = min(video_duration, start + clip_len)
+        start = max(0.0, end - clip_len)
+        segments.append({
+            "title": f"Compilation clip {i + 1}",
+            "start_time": start,
+            "end_time": end,
+            "hook": "Timeline fallback",
+            "reasoning": "Low-speech / compilation video: evenly spaced cuts.",
+            "score": 60,
+            "duration": end - start,
+        })
+    return {"segments": segments}
+
+
 def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode="manual", api_key=None, project_folder="tmp", chunk_size_arg=None, model_name_arg=None):
     quantidade_de_virals = num_segments
 
     # 1. Load Transcript
-    transcript_segments = load_transcript(project_folder)
+    try:
+        transcript_segments = load_transcript(project_folder)
+    except Exception as e:
+        duration = _video_duration(project_folder)
+        print(f"[WARN] {e} Using timeline cuts.")
+        return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
 
     # 2. Pre-process Content
     formatted_content = preprocess_transcript_for_ai(transcript_segments)
     content = formatted_content
+    speech_sec = _speech_seconds(transcript_segments)
+    if speech_sec < float(tempo_minimo):
+        duration = _video_duration(project_folder, transcript_segments)
+        print(f"[WARN] Transcript has only {speech_sec:.1f}s of speech (< {tempo_minimo}s). Using timeline cuts.")
+        return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)
 
     # Load Config and Prompt
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -523,6 +705,17 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
         "g4f": {
             "model": "gpt-4o-mini",
             "chunk_size": 2000
+        },
+        "groq": {
+            "api_key": "",
+            "model": "openai/gpt-oss-120b",
+            "chunk_size": 40000
+        },
+        "cloudflare": {
+            "account_id": "",
+            "api_token": "",
+            "model": "@cf/openai/gpt-oss-120b",
+            "chunk_size": 40000
         }
     }
 
@@ -532,6 +725,8 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
                 loaded_config = json.load(f)
                 if "gemini" in loaded_config: config["gemini"].update(loaded_config["gemini"])
                 if "g4f" in loaded_config: config["g4f"].update(loaded_config["g4f"])
+                if "groq" in loaded_config: config["groq"].update(loaded_config["groq"])
+                if "cloudflare" in loaded_config: config["cloudflare"].update(loaded_config["cloudflare"])
                 if "selected_api" in loaded_config: config["selected_api"] = loaded_config["selected_api"]
         except Exception as e:
             print(f"Erro ao ler api_config.json: {e}")
@@ -553,9 +748,19 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
         cfg_model = config["g4f"].get("model", "gpt-4o-mini")
         model_name = model_name_arg if model_name_arg else cfg_model
 
-    elif ai_mode == "local":
-        current_chunk_size = chunk_size_arg if chunk_size_arg and int(chunk_size_arg) > 0 else 3000
-        model_name = model_name_arg if model_name_arg else ""
+    elif ai_mode == "groq":
+        cfg_chunk = config["groq"].get("chunk_size", 40000)
+        current_chunk_size = chunk_size_arg if chunk_size_arg and int(chunk_size_arg) > 0 else cfg_chunk
+        cfg_model = config["groq"].get("model", "openai/gpt-oss-120b")
+        model_name = model_name_arg if model_name_arg else cfg_model
+        if not api_key:
+            api_key = config["groq"].get("api_key", "")
+
+    elif ai_mode == "cloudflare":
+        cfg_chunk = config["cloudflare"].get("chunk_size", 40000)
+        current_chunk_size = chunk_size_arg if chunk_size_arg and int(chunk_size_arg) > 0 else cfg_chunk
+        cfg_model = config["cloudflare"].get("model", "@cf/openai/gpt-oss-120b")
+        model_name = model_name_arg if model_name_arg else cfg_model
 
     system_prompt_template = ""
     if os.path.exists(prompt_path):
@@ -670,33 +875,6 @@ OUTPUT JSON ONLY:
 
     print(f"Processando {len(output_texts)} chunks usando modo: {ai_mode.upper()}")
 
-    local_llm_instance = None
-    if ai_mode == "local":
-        if not HAS_LLAMA_CPP:
-            print("Error: llama-cpp-python not installed. Please install it to use Local mode.")
-            return {"segments": []}
-            
-        models_dir = os.path.join(base_dir, 'models')
-        model_path = os.path.join(models_dir, model_name)
-        if not os.path.exists(model_path):
-             if os.path.exists(model_name):
-                 model_path = model_name
-             else:
-                 print(f"Error: Model not found at {model_path}")
-                 return {"segments": []}
-        
-        print(f"[INFO] Loading Local Model: {os.path.basename(model_path)} (This may take a while)...")
-        try:
-            local_llm_instance = Llama(
-                model_path=model_path,
-                n_gpu_layers=-1, 
-                n_ctx=8192,
-                verbose=False
-            )
-        except Exception as e:
-            print(f"Failed to load model: {e}")
-            return {"segments": []}
-
     for i, prompt in enumerate(output_texts):
         response_text = ""
         manual_prompt_path = os.path.join(project_folder, f"prompt_part_{i+1}.txt")
@@ -745,21 +923,18 @@ OUTPUT JSON ONLY:
         elif ai_mode == "g4f":
             print(f"Enviando chunk {i+1} para o G4F (Model: {model_name})...")
             response_text = call_g4f(prompt, model_name=model_name)
-        elif ai_mode == "local" and local_llm_instance:
-            print(f"Processing chunk {i+1} with Local LLM...")
-            try:
-                output = local_llm_instance.create_chat_completion(
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant that outputs only JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=4096,
-                    temperature=0.7
-                )
-                response_text = output['choices'][0]['message']['content']
-            except Exception as e:
-                print(f"Error evaluating local model: {e}")
-                response_text = "{}"
+        elif ai_mode == "groq":
+            print(f"Enviando chunk {i+1} para o Groq (Model: {model_name})...")
+            response_text = call_groq(prompt, api_key, model_name=model_name)
+        elif ai_mode == "cloudflare":
+            print(f"Enviando chunk {i+1} para o Cloudflare (Model: {model_name})...")
+            cf_cfg = config.get("cloudflare") or {}
+            response_text = call_cloudflare(
+                prompt,
+                cf_cfg.get("account_id", ""),
+                cf_cfg.get("api_token", ""),
+                model_name=model_name,
+            )
 
         # --- Save RAW Response for Debugging ---
         try:
@@ -781,11 +956,15 @@ OUTPUT JSON ONLY:
         except Exception as e:
             print(f"Erro desconhecido ao processar chunk: {e}")
 
-    # Call the alignment / processing logic
-    return process_segments(
-        all_raw_segments, 
-        transcript_segments, 
-        tempo_minimo, 
-        tempo_maximo, 
-        output_count=quantidade_de_virals
+    result = process_segments(
+        all_raw_segments,
+        transcript_segments,
+        tempo_minimo,
+        tempo_maximo,
+        output_count=quantidade_de_virals,
     )
+    if result.get("segments"):
+        return result
+    duration = _video_duration(project_folder, transcript_segments)
+    print("[WARN] Model returned 0 speech segments. Using timeline cuts.")
+    return _fallback_timeline_segments(quantidade_de_virals, tempo_minimo, tempo_maximo, duration)

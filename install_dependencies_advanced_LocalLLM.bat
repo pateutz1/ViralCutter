@@ -1,50 +1,50 @@
 @echo off
 echo ==========================================
-echo Instalando uv (Gerenciador de pacotes rapido Python)...
+echo Installing uv (fast Python package manager)...
 echo ==========================================
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 echo.
 echo ==========================================
-echo Criando ambiente virtual (.venv)...
+echo Creating virtual environment (.venv)...
 echo ==========================================
-:: Tenta usar o uv do PATH. Se falhar, pode ser necessario reiniciar o terminal.
+:: Try to use uv from PATH. If it fails, you may need to restart the terminal.
 uv venv
 
 echo.
 echo ==========================================
-echo CONFIGURACAO DE PLACA DE VIDEO
+echo GPU CONFIGURATION
 echo ==========================================
-echo Qual e a sua Placa de Video?
-echo [1] NVIDIA (Instala com aceleracao CUDA - Mais rapido)
-echo [2] AMD / Nenhuma (Ou se nao souber - Instala versao normal)
-set /p gpu_choice="Escolha (1/2): "
+echo What is your graphics card?
+echo [1] NVIDIA (Install with CUDA acceleration - Faster)
+echo [2] AMD / None (Or if unsure - Install normal version)
+set /p gpu_choice="Choose (1/2): "
 
 if "%gpu_choice%"=="1" (
     echo.
-    echo Instalando PyTorch e ONNX para NVIDIA...
+    echo Installing PyTorch and ONNX for NVIDIA...
     uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
     uv pip install onnxruntime-gpu==1.20.1
-    echo Instalando LLaMA C++ para NVIDIA...
+    echo Installing LLaMA C++ for NVIDIA...
     uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 ) else (
     echo.
-    echo Instalando PyTorch e ONNX para AMD/CPU...
+    echo Installing PyTorch and ONNX for AMD/CPU...
     uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
     uv pip install onnxruntime==1.20.1
-    echo Instalando LLaMA C++ normal (Requer C++ Build Tools)...
+    echo Installing standard LLaMA C++ (Requires C++ Build Tools)...
     uv pip install llama-cpp-python
 )
 
 echo.
 echo ==========================================
-echo Instalando TODAS as dependencias (INCLUINDO MODELOS LOCAIS LLM)
-echo Atenção: Processo mais demorado. Requer C++ Build Tools.
+echo Installing ALL dependencies (INCLUDING LOCAL LLM MODELS)
+echo Warning: This takes longer. Requires C++ Build Tools.
 echo ==========================================
 uv pip install -r requirements.txt
 
 echo.
 echo ==========================================
-echo Concluido! O ViralCutter esta pronto para rodar Modelos Locais.
+echo Done! ViralCutter is ready to run Local Models.
 echo ==========================================
 pause

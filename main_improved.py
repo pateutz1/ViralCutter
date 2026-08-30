@@ -108,10 +108,10 @@ def main():
     parser.add_argument("--burn-only", action="store_true", help="Skip processing and only burn subtitles")
     parser.add_argument("--min-duration", type=int, default=15, help="Minimum segment duration (seconds)")
     parser.add_argument("--max-duration", type=int, default=90, help="Maximum segment duration (seconds)")
-    parser.add_argument("--model", default="large-v3-turbo", help="Whisper model to use")
+    parser.add_argument("--model", default="cloudflare", help="Whisper backend: cloudflare or groq (whisper-large-v3-turbo)")
     
-    parser.add_argument("--ai-backend", choices=["manual", "gemini", "g4f", "local"], help="AI backend for viral analysis")
-    parser.add_argument("--api-key", help="Gemini API Key (required if ai-backend is gemini)")
+    parser.add_argument("--ai-backend", choices=["manual", "gemini", "g4f", "groq", "cloudflare"], help="AI backend for viral analysis")
+    parser.add_argument("--api-key", help="Gemini or Groq API Key")
     
     parser.add_argument("--chunk-size", help="Override Chunk Size")
     parser.add_argument("--ai-model-name", help="Override AI Model Name")
@@ -309,44 +309,20 @@ def main():
             else:
                 print("\n" + i18n("Select AI Backend for Viral Analysis:"))
                 print(i18n("1. Gemini API (Best / Recommended)"))
-                print(i18n("2. G4F (Free / Experimental)"))
-                print(i18n("3. Local (GGUF via llama.cpp)"))
-                print(i18n("4. Manual (Copy/Paste Prompt)"))
-                choice = input(i18n("Choose (1-4): ")).strip()
+                print(i18n("2. Groq (openai/gpt-oss-120b)"))
+                print(i18n("3. Cloudflare Workers AI (@cf/openai/gpt-oss-120b)"))
+                print(i18n("4. G4F (Free / Experimental)"))
+                print(i18n("5. Manual (Copy/Paste Prompt)"))
+                choice = input(i18n("Choose (1-5): ")).strip()
                 
                 if choice == "1":
                     ai_backend = "gemini"
                 elif choice == "2":
-                    ai_backend = "g4f"
+                    ai_backend = "groq"
                 elif choice == "3":
-                    ai_backend = "local"
-                    # Interactive model selection for local
-                    # List models
-                    models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-                    if not os.path.exists(models_dir): os.makedirs(models_dir)
-                    models = [f for f in os.listdir(models_dir) if f.endswith(".gguf")]
-                    
-                    if not models:
-                        print(i18n("\nNo .gguf models found in 'models' directory."))
-                        print(i18n("Please place a module file in: {}").format(models_dir))
-                        print(i18n("Falling back to Manual..."))
-                        ai_backend = "manual"
-                    else:
-                        print(i18n("\nAvailable Models:"))
-                        for idx, m in enumerate(models):
-                            print(f"{idx+1}. {m}")
-                        
-                        try:
-                            m_idx = int(input(i18n("Select Model (Number): "))) - 1
-                            if 0 <= m_idx < len(models):
-                                args.ai_model_name = models[m_idx] # Set global arg
-                            else:
-                                print(i18n("Invalid selection. Using first model."))
-                                args.ai_model_name = models[0]
-                        except:
-                             print(i18n("Invalid input. Using first model."))
-                             args.ai_model_name = models[0]
-                             
+                    ai_backend = "cloudflare"
+                elif choice == "4":
+                    ai_backend = "g4f"
                 else:
                     ai_backend = "manual"
 
@@ -363,6 +339,16 @@ def main():
              else:
                  print(i18n("Gemini API Key not found in api_config.json or arguments."))
                  api_key = input(i18n("Enter your Gemini API Key: ")).strip()
+
+        if ai_backend == "groq" and not api_key:
+            api_key = api_config.get("groq", {}).get("api_key", "")
+            if not api_key and not args.skip_prompts:
+                api_key = input(i18n("Enter your Groq API Key: ")).strip()
+
+        if ai_backend == "cloudflare":
+            cf_cfg = api_config.get("cloudflare", {})
+            if not cf_cfg.get("account_id") or not cf_cfg.get("api_token"):
+                print(i18n("Cloudflare account_id/api_token missing in api_config.json."))
 
     # Workflow & Face Config Inputs
     workflow_choice = args.workflow
@@ -439,7 +425,6 @@ def main():
             # viral_segments = True # Removed to avoid overwritting dict loaded earlier
         else:
             print(i18n("Transcribing with model {}...").format(args.model))
-            # Se skip config, args.model é default
             srt_file, tsv_file = transcribe_video.transcribe(input_video, args.model, project_folder=project_folder)
  
         # 3. Create Viral Segments
@@ -668,6 +653,10 @@ def main():
                     used_ai_model = api_config.get("gemini", {}).get("model", "default")
                 elif ai_backend == "g4f":
                     used_ai_model = api_config.get("g4f", {}).get("model", "default")
+                elif ai_backend == "groq":
+                    used_ai_model = api_config.get("groq", {}).get("model", "openai/gpt-oss-120b")
+                elif ai_backend == "cloudflare":
+                    used_ai_model = api_config.get("cloudflare", {}).get("model", "@cf/openai/gpt-oss-120b")
             
             # Ensure sub_config exists
             current_sub_config = sub_config if 'sub_config' in locals() else get_subtitle_config(args.subtitle_config)

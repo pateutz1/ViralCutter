@@ -16,6 +16,26 @@ except ImportError:
 # Global cache for encoder
 CACHED_ENCODER = None
 
+def encoder_works(encoder, preset):
+    """Return True only when FFmpeg can initialize the encoder on this host."""
+    command = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error',
+        '-f', 'lavfi', '-i', 'color=c=black:s=64x64:d=0.1',
+        '-frames:v', '1', '-an',
+        '-c:v', encoder, '-preset', preset,
+        '-f', 'null', '-',
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return result.returncode == 0
+    except OSError:
+        return False
+
 def get_best_encoder():
     global CACHED_ENCODER
     if CACHED_ENCODER: return CACHED_ENCODER
@@ -25,27 +45,19 @@ def get_best_encoder():
         result = subprocess.run(['ffmpeg', '-hide_banner', '-encoders'], capture_output=True, text=True)
         output = result.stdout
         
-        # Priority: NVENC (NVIDIA) > AMF (AMD) > QSV (Intel) > CPU
-        if "h264_nvenc" in output:
-            print("Encoder Detected: NVIDIA (h264_nvenc)")
-            CACHED_ENCODER = ("h264_nvenc", "fast") # p1-p7 presets could be used but 'fast' maps well
-            return CACHED_ENCODER
-        
-        if "h264_amf" in output:
-            print("Encoder Detected: AMD (h264_amf)")
-            CACHED_ENCODER = ("h264_amf", "speed") # quality, speed, balanced
-            return CACHED_ENCODER
-            
-        if "h264_qsv" in output:
-             print("Encoder Detected: Intel QSV (h264_qsv)")
-             CACHED_ENCODER = ("h264_qsv", "veryfast")
-             return CACHED_ENCODER
-             
-        # Mac OS (VideoToolbox)
-        if "h264_videotoolbox" in output:
-             print("Encoder Detected: MacOS (h264_videotoolbox)")
-             CACHED_ENCODER = ("h264_videotoolbox", "default")
-             return CACHED_ENCODER
+        # Listing an encoder only means the FFmpeg build contains it. Probe each
+        # candidate because its driver or hardware can still be unavailable.
+        candidates = [
+            ("h264_nvenc", "p1", "NVIDIA"),
+            ("h264_amf", "speed", "AMD"),
+            ("h264_qsv", "veryfast", "Intel QSV"),
+            ("h264_videotoolbox", "default", "MacOS VideoToolbox"),
+        ]
+        for encoder, preset, label in candidates:
+            if encoder in output and encoder_works(encoder, preset):
+                print(f"Encoder Detected: {label} ({encoder})")
+                CACHED_ENCODER = (encoder, preset)
+                return CACHED_ENCODER
 
     except Exception as e:
         print(f"Error checking encoders: {e}")

@@ -1,48 +1,48 @@
 @echo off
 echo ==========================================
-echo Instalando uv (Gerenciador de pacotes rapido Python)...
+echo Installing uv (fast Python package manager)...
 echo ==========================================
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 echo.
 echo ==========================================
-echo Criando ambiente virtual (.venv)...
+echo Creating virtual environment (.venv)...
 echo ==========================================
-:: Tenta usar o uv do PATH. Se falhar, pode ser necessario reiniciar o terminal.
+:: Try to use uv from PATH. If it fails, you may need to restart the terminal.
 uv venv
 
 echo.
 echo ==========================================
-echo CONFIGURACAO DE PLACA DE VIDEO
+echo GPU CONFIGURATION
 echo ==========================================
-echo Qual e a sua Placa de Video?
-echo [1] NVIDIA (Instala com aceleracao CUDA - Mais rapido)
-echo [2] AMD / Nenhuma (Ou se nao souber - Instala versao normal)
-set /p gpu_choice="Escolha (1/2): "
+echo What is your graphics card?
+echo [1] NVIDIA (Install with CUDA acceleration - Faster)
+echo [2] AMD / None (Or if unsure - Install normal version)
+set /p gpu_choice="Choose (1/2): "
 
 if "%gpu_choice%"=="1" (
     echo.
-    echo Instalando PyTorch e ONNX para NVIDIA...
+    echo Installing PyTorch and ONNX for NVIDIA...
     uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
     uv pip install onnxruntime-gpu==1.20.1
 ) else (
     echo.
-    echo Instalando PyTorch e ONNX para AMD/CPU...
+    echo Installing PyTorch and ONNX for AMD/CPU...
     uv pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
     uv pip install onnxruntime==1.20.1
 )
 
 echo.
 echo ==========================================
-echo Instalando dependencias essenciais do requirements.txt...
-echo (IAs em Nuvem / Sem Modelos Locais)
+echo Installing essential dependencies from requirements.txt...
+echo (Cloud AIs / No Local Models)
 echo ==========================================
-:: Ativa o venv temporariamente para o install (uv gerencia isso automaticamente se detectar o venv, mas vamos garantir)
-:: Se o uv venv criou a pasta .venv, o uv pip install vai usar ela por padrao se estiver na raiz.
+:: Activates the venv temporarily for the install (uv manages this automatically if it detects the venv)
+:: If uv venv created the .venv folder, uv pip install will use it by default from the project root.
 uv pip install -r requirements.txt
 
 echo.
 echo ==========================================
-echo Concluido!
+echo Done!
 echo ==========================================
 pause

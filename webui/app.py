@@ -155,9 +155,18 @@ G4F_MODELS = [
     'qwen-2.5-72b'
 ]
 
-def get_local_models():
-    if not os.path.exists(MODELS_DIR): return []
-    return [f for f in os.listdir(MODELS_DIR) if f.endswith(".gguf")]
+GROQ_MODELS = [
+    'openai/gpt-oss-120b'
+]
+
+CLOUDFLARE_MODELS = [
+    '@cf/openai/gpt-oss-120b'
+]
+
+WHISPER_BACKENDS = [
+    'cloudflare',
+    'groq'
+]
 
 
 
@@ -426,21 +435,17 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                         max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=90)
                 with gr.Column(scale=1):
                     with gr.Row():
-                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("G4F"), "g4f"), (i18n("Local (GGUF)"), "local"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value="gemini", scale=2)
+                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value="gemini", scale=2)
                         api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", scale=3)
                     
                     # New Dynamic Inputs
                     with gr.Row():
                         ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=GEMINI_MODELS[1], allow_custom_value=True, visible=True, scale=5)
-                        refresh_models_btn = gr.Button("🔄", size="sm", visible=False, scale=0, min_width=50) # Only local
                         chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=70000, precision=0, scale=2)
                     
-                    # Update listeners with logic to hide/show API key
                     def update_ai_ui(backend):
-                        show_api = (backend == "gemini")
-                        show_refresh = (backend == "local")
-                        
-                        # Definições padrão para evitar que fiquem vazios
+                        show_api = backend in ("gemini", "groq")
+                        api_label = i18n("Groq API Key") if backend == "groq" else i18n("Gemini API Key")
                         new_choices = []
                         new_val = ""
                         new_chunk = 70000
@@ -453,30 +458,24 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                             new_choices = G4F_MODELS
                             new_val = G4F_MODELS[5]
                             new_chunk = 70000
-                        elif backend == "local":
-                            models = get_local_models()
-                            new_choices = models if models else [i18n("No models found")]
-                            new_val = new_choices[0]
-                            new_chunk = 30000
-                        else: # Manual
-                             pass
+                        elif backend == "groq":
+                            new_choices = GROQ_MODELS
+                            new_val = GROQ_MODELS[0]
+                            new_chunk = 40000
+                        elif backend == "cloudflare":
+                            new_choices = CLOUDFLARE_MODELS
+                            new_val = CLOUDFLARE_MODELS[0]
+                            new_chunk = 40000
 
                         return (
-                            gr.update(visible=show_api), # API Key Visibility (Fixes hole 1)
-                            gr.update(choices=new_choices, value=new_val, visible=(backend != "manual")), # Model Dropdown
-                            gr.update(visible=show_refresh), # Refresh Button
-                            gr.update(value=new_chunk) # Chunk Size
+                            gr.update(visible=show_api, label=api_label),
+                            gr.update(choices=new_choices, value=new_val, visible=(backend != "manual")),
+                            gr.update(value=new_chunk)
                         )
 
-                    def refresh_local_models():
-                        models = get_local_models()
-                        val = models[0] if models else i18n("No models found")
-                        return gr.update(choices=models, value=val)
+                    ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, chunk_size_input])
 
-                    refresh_models_btn.click(refresh_local_models, outputs=ai_model_input)
-                    ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, refresh_models_btn, chunk_size_input])
-
-                    model_input = gr.Dropdown(["tiny", "small", "medium", "large", "large-v1", "large-v2", "large-v3", "turbo", "large-v3-turbo", "distil-large-v2", "distil-medium.en", "distil-small.en", "distil-large-v3"], label=i18n("Whisper Model"), value="large-v3-turbo")
+                    model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value="cloudflare")
                     with gr.Row():
                         workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value="Full")
                         face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value="insightface")

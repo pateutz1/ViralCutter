@@ -17,8 +17,8 @@ Forget expensive subscriptions and minute limits. ViralCutter offers unlimited p
 | Feature | ViralCutter (Open-Source) | Opus Clip / Klap / Munch (SaaS) |
 | :--- | :--- | :--- |
 | **Price** | **Free & Unlimited** | $20–$100/mo + minute limits |
-| **Privacy** | **100% Local** (Your data never leaves your PC) | Upload to third-party cloud |
-| **AI & LLM** | **Flexible**: Gemini (Free), GPT-4, **Local GGUF (Offline)** | Only what they offer |
+| **Privacy** | Face tracking and editing stay on your PC; transcription/LLM use your cloud keys | Upload to third-party cloud |
+| **AI & LLM** | **Flexible**: Gemini, Groq (`openai/gpt-oss-120b`), Cloudflare (`@cf/openai/gpt-oss-120b`), GPT-4 via G4F | Only what they offer |
 | **Face Tracking** | **Split Screen (2 faces)**, Active Speaker (Exp.), Auto | Basic or extra cost |
 | **Translation** | **Yes** (Translate captions to 10+ languages) | Limited features |
 | **Editing** | **Export XML to Premiere Pro** (Beta) | Limited web editor |
@@ -28,8 +28,8 @@ Forget expensive subscriptions and minute limits. ViralCutter offers unlimited p
 
 ## Key Features 🚀
 
--   🤖 **AI Viral Cut**: Automatically identifies hooks and engaging moments using **Gemini**, **GPT-4**, or **Local LLMs (Llama 3, DeepSeek, etc)**.
--   🗣️ **Ultra-Precise Transcription**: Powered by **WhisperX** with GPU acceleration for perfect subtitles.
+-   🤖 **AI Viral Cut**: Automatically identifies hooks and engaging moments using **Gemini**, **Groq** (`openai/gpt-oss-120b`), **Cloudflare Workers AI** (`@cf/openai/gpt-oss-120b`), or **GPT-4** via G4F.
+-   🗣️ **Ultra-Precise Transcription**: Cloud **whisper-large-v3-turbo** via [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/) or **Groq**. No local Whisper/GPU required.
 -   🎨 **Dynamic Captions**: "Hormozi" style with word-by-word highlights, vibrant colors, emojis, and full customization.
 -   🎥 **Auto Camera Direction**:
     -   **Auto-Crop 9:16**: Transforms horizontal to vertical while keeping the focus.
@@ -68,24 +68,23 @@ To run ViralCutter on a fresh computer, you need to install the following core t
      `winget install ffmpeg`
    - Restart the terminal and type `ffmpeg -version` to confirm it works.
 
-4. **Video Card Drivers (NVIDIA)**
-   - Keep your drivers updated (via GeForce Experience or the Nvidia website) to support CUDA 12.4+ acceleration.
-   - **NVIDIA GPU** is highly recommended for speed and local AI operations.
+4. **Video Card Drivers (NVIDIA)** *(optional)*
+   - Helpful for faster **face tracking** (InsightFace). Transcription and LLMs run in the cloud (Cloudflare / Groq / Gemini).
+   - No local LLM or WhisperX GPU is required.
 
 ---
 
 ### Step-by-Step Installation
 
 1.  **Install Dependencies via Script**
-    Open the ViralCutter folder and double-click **one of the installers** below:
-    *   `install_dependencies.bat`: **Standard** installation (Recommended). Faster and fail-proof. Uses cloud AIs like Gemini (Free) and GPT-4.
-    *   `install_dependencies_advanced_LocalLLM.bat`: **Advanced** installation. Dedicated for users who want to run full offline AIs on their hardware (Llama 3, etc). Requires a good GPU and *C++ Build Tools*.
-    
-    *(Both use the `uv` package manager to set everything up automatically).*
+    Open the ViralCutter folder and double-click `install_dependencies.bat` (uses `uv`).
+    Do **not** use `install_dependencies_advanced_LocalLLM.bat` — local GGUF models are not supported in this setup.
 
-2.  **Configure AI (Optional)**
-    -   **Gemini (Recommended/Free)**: Add your key in `api_config.json`.
-    -   **Local (GGUF)**: Download your favorite `.gguf` models and place them in the `models/` folder. ViralCutter will detect them automatically.
+2.  **Configure AI** in `api_config.json`
+    -   **Gemini**: set `gemini.api_key`.
+    -   **Groq**: set `groq.api_key` (LLM: `openai/gpt-oss-120b`, Whisper: `whisper-large-v3-turbo`).
+    -   **Cloudflare Workers AI**: set `cloudflare.account_id` and `cloudflare.api_token` ([REST API setup](https://developers.cloudflare.com/workers-ai/get-started/rest-api/)). LLM: `@cf/openai/gpt-oss-120b`. Whisper: `@cf/openai/whisper-large-v3-turbo`.
+    -   **Whisper backend**: set `whisper_backend` to `cloudflare` or `groq` (WebUI can override).
 
 3.  **Run**
     -   Double-click `run_webui.bat` to open the interface in your browser.
@@ -109,7 +108,7 @@ To run ViralCutter on a fresh computer, you need to install the following core t
 - [x] Two face in the cut (Split Screen)
 - [x] Custom caption and burn
 - [x] Make the code faster
-- [x] 100% Local AI Models (Ollama/Llama/GGUF)
+- [x] Cloud LLMs: Gemini, Groq, Cloudflare Workers AI, G4F
 - [x] Automatic caption translation
 - [x] The cut follows the face as it moves
 - [x] XML Export to Premiere Pro (Beta)

@@ -1,0 +1,26 @@
+{
+    "selected_api": "cloudflare",
+    "whisper_backend": "cloudflare",
+    "gemini": {
+        "api_key": "",
+        "model": "gemini-2.5-flash",
+        "chunk_size": 20000
+    },
+    "g4f": {
+        "model": "gpt-4o-mini",
+        "chunk_size": 2000
+    },
+    "groq": {
+        "api_key": "",
+        "model": "openai/gpt-oss-120b",
+        "whisper_model": "whisper-large-v3-turbo",
+        "chunk_size": 40000
+    },
+    "cloudflare": {
+        "account_id": "",
+        "api_token": "",
+        "model": "@cf/openai/gpt-oss-120b",
+        "whisper_model": "@cf/openai/whisper-large-v3-turbo",
+        "chunk_size": 40000
+    }
+}

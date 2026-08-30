@@ -3,15 +3,30 @@ import os
 import subprocess
 import json
 
+def _encoder_works(encoder, preset):
+    """Return True only when FFmpeg can actually initialize the encoder."""
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error",
+        "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.1",
+        "-frames:v", "1", "-an",
+        "-c:v", encoder, "-preset", preset,
+        "-f", "null", "-",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return result.returncode == 0
+    except OSError:
+        return False
+
 def cut(segments, project_folder="tmp", skip_video=False):
 
     def check_nvenc_support():
-        # ... (unchanged)
-        try:
-            result = subprocess.run(["ffmpeg", "-encoders"], capture_output=True, text=True)
-            return "h264_nvenc" in result.stdout
-        except subprocess.CalledProcessError:
-            return False
+        return _encoder_works("h264_nvenc", "p1")
 
     def generate_segments(response, project_folder, skip_video):
         if not check_nvenc_support():
@@ -106,41 +121,45 @@ def cut(segments, project_folder="tmp", skip_video=False):
 
             # VIDEO GENERATION
             if not skip_video:
-                # Comando ffmpeg
-                command = [
-                    "ffmpeg",
-                    "-y",
-                    "-loglevel", "error", "-hide_banner",
-                    "-ss", start_time_str,
-                    "-i", input_file,
-                    "-t", duration_str,
-                    "-c:v", video_codec
-                ]
+                def build_command(codec):
+                    command = [
+                        "ffmpeg", "-y", "-loglevel", "error", "-hide_banner",
+                        "-ss", start_time_str, "-i", input_file,
+                        "-t", duration_str, "-c:v", codec,
+                    ]
+                    if codec == "h264_nvenc":
+                        command.extend(["-preset", "p1", "-b:v", "5M"])
+                    else:
+                        command.extend(["-preset", "ultrafast", "-crf", "23"])
+                    command.extend(["-c:a", "aac", "-b:a", "128k", output_path])
+                    return command
 
-                if video_codec == "h264_nvenc":
-                    command.extend([
-                        "-preset", "p1",
-                        "-b:v", "5M",
-                    ])
-                else:
-                    command.extend([
-                        "-preset", "ultrafast",
-                        "-crf", "23"
-                    ])
+                codecs_to_try = [video_codec]
+                if video_codec != "libx264":
+                    codecs_to_try.append("libx264")
 
-                command.extend([
-                    "-c:a", "aac",
-                    "-b:a", "128k",
-                    output_path
-                ])
+                last_error = None
+                for codec in codecs_to_try:
+                    try:
+                        subprocess.run(
+                            build_command(codec), check=True,
+                            capture_output=True, text=True,
+                        )
+                        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                            raise RuntimeError(f"FFmpeg created an empty output: {output_path}")
+                        print(f"Generated segment with {codec}: {output_filename}, Size: {os.path.getsize(output_path)} bytes")
+                        last_error = None
+                        break
+                    except (subprocess.CalledProcessError, RuntimeError) as error:
+                        last_error = error
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+                        if codec != "libx264":
+                            print(f"Encoder {codec} failed. Retrying with CPU (libx264)...")
 
-                try:
-                    subprocess.run(command, check=True, capture_output=True, text=True)
-                    if os.path.exists(output_path):
-                        file_size = os.path.getsize(output_path)
-                        print(f"Generated segment: {output_filename}, Size: {file_size} bytes")
-                except subprocess.CalledProcessError as e:
-                    print(f"Error executing ffmpeg: {e}")
+                if last_error is not None:
+                    stderr = getattr(last_error, "stderr", "") or ""
+                    raise RuntimeError(f"FFmpeg failed to generate {output_filename}: {stderr.strip()}") from last_error
             else:
                 print(f"Skipping video generation for {output_filename} (using existing). check json...")
             
