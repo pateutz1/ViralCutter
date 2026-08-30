@@ -11,7 +11,7 @@ def transcribe(project_folder="tmp"):
 
         # Skip processing if the JSON file already exists
         if os.path.exists(json_file):
-            print(f"Arquivo já existe, pulando: {json_file}")
+            print(f"File already exists, skipping: {json_file}")
             return
 
         command = [
@@ -30,29 +30,28 @@ def transcribe(project_folder="tmp"):
             "--output_format", "json",
         ]
 
-        print(f"Transcrevendo: {input_file}...")
+        print(f"Transcribing: {input_file}...")
         result = subprocess.run(command, shell=True, text=True, capture_output=True)
-        print(f"Comando executado: {command}")
+        print(f"Command executed: {command}")
         
         if result.returncode != 0:
-            print("Erro durante a transcrição:")
+            print("Error during transcription:")
             print(result.stderr)
         else:
-            print(f"Transcrição concluída. Arquivo salvo em: {output_file} e {json_file}")
+            print(f"Transcription completed. File saved to: {output_file} and {json_file}")
             # print(result.stdout) 
 
-    # Define o diretório de entrada e o diretório de saída
+    # Define input and output directories
     input_folder = os.path.join(project_folder, 'final')
     output_folder = os.path.join(project_folder, 'subs')
     os.makedirs(output_folder, exist_ok=True)
 
     if not os.path.exists(input_folder):
-        print(f"Pasta de entrada não encontrada: {input_folder}")
+        print(f"Input folder not found: {input_folder}")
         return
 
-    # Itera sobre todos os arquivos na pasta de entrada
+    # Iterate over all files in the input folder
     for filename in os.listdir(input_folder):
-        if filename.endswith('.mp4'):  # Filtra apenas arquivos .mp4
+        if filename.endswith('.mp4'):  # Filter only .mp4 files
             input_file = os.path.join(input_folder, filename)
             generate_whisperx(input_file, output_folder)
-

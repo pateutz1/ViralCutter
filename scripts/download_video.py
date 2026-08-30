@@ -6,16 +6,16 @@ from i18n.i18n import I18nAuto
 i18n = I18nAuto()
 
 def sanitize_filename(name):
-    """Remove caracteres inválidos e emojis para evitar erro de encoding no Windows."""
-    # Remove caracteres reservados do sistema de arquivos
+    """Remove invalid characters and emojis to avoid encoding errors on Windows."""
+    # Remove filesystem reserved characters
     cleaned = re.sub(r'[\\/*?:"<>|]', "", name)
     
-    # Remove emojis e caracteres não suportados pelo console Windows (CP1252)
-    # Isso mantém acentos (á, ç, é) mas remove 😱, etc.
+    # Remove emojis and characters unsupported by the Windows console (CP1252)
+    # This keeps accents (á, ç, é) but removes 😱, etc.
     try:
         cleaned = cleaned.encode('cp1252', 'ignore').decode('cp1252')
     except:
-        # Fallback se não tiver CP1252: remove tudo não-ascii (remove acentos)
+        # Fallback if CP1252 is unavailable: strip all non-ascii (removes accents)
         cleaned = cleaned.encode('ascii', 'ignore').decode('ascii')
         
     cleaned = cleaned.strip()
@@ -29,11 +29,11 @@ def progress_hook(d):
         except:
             pass
     elif d['status'] == 'finished':
-        print(f"[download] Download concluído: {d['filename']}", flush=True)
+        print(f"[download] Download completed: {d['filename']}", flush=True)
 
 def download(url, base_root="VIRALS", download_subs=True, quality="best"):
-    # 1. Extrair informações do vídeo para pegar o título
-    # 1. Extrair informações do vídeo para pegar o título
+    # 1. Extract video info to get the title
+    # 1. Extract video info to get the title
     print(i18n("Extracting video information..."))
     title = None
     
@@ -42,7 +42,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
     # Since replace_file_content works on line ranges, I should be careful.
     # Let's assume I'm replacing the whole function body or significant parts.
     
-    # Tentativa 1: Com cookies
+    # Attempt 1: With cookies
     try:
         with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True, 'cookiesfrombrowser': ('chrome',)}) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -53,7 +53,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         except UnicodeEncodeError:
             print(i18n("Warning: Failed to extract info with cookies: [Encoding Error in Message]"))
 
-    # Tentativa 2: Sem cookies
+    # Attempt 2: Without cookies
     if not title:
         try:
              with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
@@ -65,7 +65,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
             except UnicodeEncodeError:
                 print(i18n("Error getting video info (without cookies): [Encoding Error in Message]"))
 
-    # Fallback final
+    # Final fallback
     if title:
         safe_title = sanitize_filename(title)
         try:
@@ -78,16 +78,16 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         print(i18n("WARNING: Title could not be obtained. Using 'Unknown_Video'."))
         safe_title = i18n("Unknown_Video")
 
-    # 2. Criar estrutura de pastas
+    # 2. Create folder structure
     project_folder = os.path.join(base_root, safe_title)
     os.makedirs(project_folder, exist_ok=True)
     
-    # Caminho final do vídeo
+    # Final video path
     output_filename = 'input' 
     output_path_base = os.path.join(project_folder, output_filename)
     final_video_path = f"{output_path_base}.mp4"
 
-    # Verificação inteligente
+    # Smart check
     if os.path.exists(final_video_path):
         if os.path.getsize(final_video_path) > 1024: 
             try:
@@ -103,7 +103,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
             except:
                 pass
 
-    # Limpeza de temp
+    # Temp cleanup
     temp_path = f"{output_path_base}.temp.mp4"
     if os.path.exists(temp_path):
         try:
@@ -111,7 +111,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         except:
             pass
 
-    # Mapeamento de Qualidade
+    # Quality mapping
     quality_map = {
         "best": 'bestvideo+bestaudio/best',
         "1080p": 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
@@ -130,7 +130,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         ],
         'merge_output_format': 'mp4',
         'progress_hooks': [progress_hook],
-        # Opções de Legenda
+        # Subtitle options
         'writesubtitles': download_subs,
         'writeautomaticsub': download_subs,
         'subtitleslangs': ['pt.*', 'en.*', 'sp.*'], # Prioritize generic PT, EN, SP
@@ -156,7 +156,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
     except UnicodeEncodeError:
         print(i18n("Downloading video to: {}...").format(project_folder.encode('ascii', 'replace').decode('ascii')))
     
-    # Tentativa 1: Com configuração original
+    # Attempt 1: With original configuration
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -192,17 +192,17 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         print(i18n("Unexpected error: {}").format(e))
         raise
 
-    # RENOMEAR LEGENDA PARA PADRÃO (input.vtt ou input.srt)
-    # Se for VTT, converte para SRT para garantir compatibilidade.
+    # RENAME SUBTITLE TO STANDARD (input.vtt or input.srt)
+    # If VTT, convert to SRT to ensure compatibility.
     try:
         import glob
-        # Pega a primeira que encontrar
+        # Take the first one found
         potential_subs = glob.glob(os.path.join(project_folder, "input.*.vtt")) + glob.glob(os.path.join(project_folder, "input.*.srt"))
         
         if potential_subs:
             best_sub = potential_subs[0]
             ext = os.path.splitext(best_sub)[1]
-            new_name = os.path.join(project_folder, "input.srt") # Vamos padronizar tudo para .srt
+            new_name = os.path.join(project_folder, "input.srt") # Standardize everything to .srt
             
             if ext.lower() == '.vtt':
                 try:
@@ -221,7 +221,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                     
                     for line in lines:
                         clean_line = line.strip()
-                        # Ignora Headers e Metadados do VTT/Youtube
+                        # Ignore VTT/YouTube headers and metadata
                         if clean_line.startswith("WEBVTT") or \
                            clean_line.startswith("X-TIMESTAMP") or \
                            clean_line.startswith("NOTE") or \
@@ -233,7 +233,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                             # Parse Timestamp
                             parts = clean_line.split("-->")
                             start = parts[0].strip()
-                            # Remove tags de posicionamento "align:start position:0%"
+                            # Remove positioning tags "align:start position:0%"
                             end = parts[1].strip().split(' ')[0] 
                             
                             def fix_time(t):
@@ -246,31 +246,31 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                             current_end = fix_time(end)
                             
                         elif clean_line:
-                             # Texto: remover tags complexas <00:00:00.560><c> etc
-                             # O YouTube usa formato karaoke. Ex: "Quanto<...> custa<...>"
-                             # Precisamos do texto limpo.
+                             # Text: remove complex tags <00:00:00.560><c> etc
+                             # YouTube uses karaoke format. E.g.: "How much<...> does it cost<...>"
+                             # We need clean text.
                              text = re.sub(r'<[^>]+>', '', clean_line).strip()
                              
                              if not text: continue
                              
-                             # Lógica para remover duplicatas do estilo "Roll-up" ou "Karaoke"
-                             # O YouTube repete a linha anterior às vezes.
-                             # Ex:
-                             # 1: "Quanto custa"
-                             # 2: "Quanto custa\nQuantos quilos"
+                             # Logic to remove "Roll-up" or "Karaoke" style duplicates
+                             # YouTube sometimes repeats the previous line.
+                             # E.g.:
+                             # 1: "How much does it cost"
+                             # 2: "How much does it cost\nHow many kilos"
                              
-                             # Vamos pegar apenas a ULTIMA linha se tiver quebras
+                             # Take only the LAST line if there are breaks
                              lines_in_text = text.split('\n')
                              final_line = lines_in_text[-1].strip()
                              
                              if not final_line: continue
 
-                             # Filtro de duplicidade consecutivo
+                             # Consecutive duplicate filter
                              if final_line == last_text:
                                  continue
                              
-                             # Evita blocos ultra curtos (glitch de 10ms) que repetem texto
-                             # Mas aqui estamos processando texto.
+                             # Avoid ultra-short blocks (10ms glitch) that repeat text
+                             # But here we are processing text.
                              
                              srt_content.append(f"{counter}\n")
                              srt_content.append(f"{current_start} --> {current_end}\n")
@@ -291,7 +291,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                     
                 except Exception as e_conv:
                     print(i18n("Failed to convert VTT: {}. Keeping original.").format(e_conv))
-                    # Fallback: rename apenas
+                    # Fallback: rename only
                     new_name_fallback = os.path.join(project_folder, "input.vtt")
                     if os.path.exists(new_name_fallback) and new_name_fallback != best_sub:
                         try: os.remove(new_name_fallback)
@@ -299,7 +299,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                     os.rename(best_sub, new_name_fallback)
 
             else:
-                # Já é SRT, só renomeia
+                # Already SRT, just rename
                 if os.path.exists(new_name) and new_name != best_sub:
                     try: os.remove(new_name)
                     except: pass
@@ -309,7 +309,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                 except UnicodeEncodeError:
                     print(i18n("SRT subtitle renamed to: {}").format(new_name.encode('ascii', 'replace').decode('ascii')))
             
-            # Limpa sobras
+            # Clean leftovers
             for extra in potential_subs[1:]:
                 try: os.remove(extra)
                 except: pass

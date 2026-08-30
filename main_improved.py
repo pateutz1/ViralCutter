@@ -28,11 +28,11 @@ from scripts import (
 )
 from i18n.i18n import I18nAuto
 
-# Inicializa sistema de tradução
+# Initialize translation system
 i18n = I18nAuto()
 #
-# Configurações de Legenda (ASS Style)
-# Cores no formato BGR (Blue-Green-Red) para o ASS
+# Subtitle settings (ASS Style)
+# Colors in BGR (Blue-Green-Red) format for ASS
 COLORS = {
     "red": "0000FF",  # Red
     "yellow": "00FFFF",   # Yellow
@@ -88,7 +88,7 @@ def get_subtitle_config(config_path=None):
     return config
 
 def interactive_input_int(prompt_text):
-    """Solicita um inteiro ao usuário via terminal."""
+    """Prompt the user for a positive integer via the terminal."""
     while True:
         try:
             value = int(input(i18n(prompt_text)))
@@ -99,7 +99,7 @@ def interactive_input_int(prompt_text):
             print(i18n("\nError: The value you entered is not an integer. Please try again."))
 
 def main():
-    # Configuração de Argumentos via Linha de Comando (CLI)
+    # Command-line argument configuration (CLI)
     parser = argparse.ArgumentParser(description="ViralCutter CLI")
     parser.add_argument("--url", help="YouTube Video URL")
     parser.add_argument("--segments", type=int, help="Number of segments to create")
@@ -149,37 +149,37 @@ def main():
         # Prompt for project path or use latest if not provided?
         pass # Will handle in main flow
 
-    # Modo Apenas Queimar Legenda (Legacy support, mapped to Workflow 3 internally if burn-only is set)
-    # Verifica o argumento CLI ou uma variável local hardcoded (para compatibilidade)
+    # Burn-subtitles-only mode (legacy support, mapped to Workflow 3 internally if burn-only is set)
+    # Check the CLI argument or a hardcoded local variable (for compatibility)
     burn_only_mode = args.burn_only
 
     if burn_only_mode:
         print(i18n("Burn only mode activated. Switching to Workflow 3..."))
         workflow_choice = "3"
 
-    # Obtenção de Inputs (CLI ou Interativo)
+    # Collect inputs (CLI or interactive)
     url = args.url
     project_path_arg = args.project_path
     input_video = None
 
-    # Se project_path for fornecido, ignoramos URL
+    # If project_path is provided, ignore URL
     if project_path_arg:
         if os.path.exists(project_path_arg):
              print(i18n("Using provided project path: {}").format(project_path_arg))
-             # Tentar achar o input.mp4 pra manter compatibilidade de variaveis, embora Workflow 3 não precise de download
+             # Try to find input.mp4 for variable compatibility, even though Workflow 3 does not need a download
              possible_input = os.path.join(project_path_arg, "input.mp4")
              if os.path.exists(possible_input):
                  input_video = possible_input
              else:
-                 # Se não tiver input.mp4, tudo bem para workflow 3, mas definimos um dummy para não quebrar logica
+                 # If there is no input.mp4, that is fine for workflow 3, but we set a dummy so logic does not break
                  input_video = os.path.join(project_path_arg, "dummy_input.mp4")
              
-             # Se for workflow 3, não precisamos de URL
+             # If this is workflow 3, we do not need a URL
         else:
              print(i18n("Error: Provided project path does not exist."))
              sys.exit(1)
 
-    # Se não temos URL via CLI nem Project Path, pedimos agora
+    # If we have neither a CLI URL nor a project path, ask now
     if not url and not project_path_arg:
         if args.skip_prompts:
              print(i18n("No URL provided and skipping prompts. Trying to load latest project..."))
@@ -190,7 +190,7 @@ def main():
                 url = user_input
     
     if not url and not input_video:
-        # Usuário apertou Enter (Vazio) -> Tentar pegar último projeto
+        # User pressed Enter (empty) -> try to load the latest project
         base_virals = "VIRALS"
         if os.path.exists(base_virals):
             subdirs = [os.path.join(base_virals, d) for d in os.listdir(base_virals) if os.path.isdir(os.path.join(base_virals, d))]
@@ -211,13 +211,13 @@ def main():
              sys.exit(1)
 
     # -------------------------------------------------------------------------
-    # Checagem Antecipada de Segmentos Virais (Para pular configurações se já existirem)
+    # Early viral-segments check (skip configuration if they already exist)
     # -------------------------------------------------------------------------
     viral_segments = None
     project_folder_anticipated = None
 
     if input_video:
-        # Se já temos o vídeo, podemos deduzir a pasta
+        # If we already have the video, we can infer the folder
         project_folder_anticipated = os.path.dirname(input_video)
         viral_segments_file = os.path.join(project_folder_anticipated, "viral_segments.txt")
         
@@ -240,7 +240,7 @@ def main():
                 except Exception as e:
                     print(i18n("Error loading JSON: {}.").format(e))
 
-    # Variaveis de config de IA (só necessárias se não tivermos os segmentos)
+    # AI config variables (only needed if we do not already have segments)
     num_segments = None
     viral_mode = False
     themes = ""
@@ -294,7 +294,7 @@ def main():
             except:
                 pass
 
-        # Seleção do Backend de IA
+        # AI backend selection
         ai_backend = args.ai_backend
         
         # Try to load backend from config if not in args
@@ -411,7 +411,7 @@ def main():
             print(f"DEBUG: Download finished. input_video={input_video}, project_folder={project_folder}")
             
         else:
-            # Reuso de video existente
+            # Reuse existing video
             print("DEBUG: Using existing video logic.")
             project_folder = os.path.dirname(input_video)
             
@@ -429,9 +429,9 @@ def main():
  
         # 3. Create Viral Segments
         if workflow_choice != "3":
-            # Se não carregamos 'viral_segments' lá em cima (ou se era download novo), checamos agora ou criamos
+            # If we did not load 'viral_segments' above (or this was a new download), check now or create them
             if not viral_segments:
-                # Checagem tardia para downloads novos que por acaso ja tenham json (Ex: URL repetida)
+                # Late check for new downloads that already have JSON (e.g. repeated URL)
                 viral_segments_file_late = os.path.join(project_folder, "viral_segments.txt")
                 if os.path.exists(viral_segments_file_late):
                     print(i18n("Found existing viral segments file at {}").format(viral_segments_file_late))
@@ -502,10 +502,10 @@ def main():
                           # If alignment fails, it might crash later, but we tried. 
 
         # 4. Cut Segments
-        # Se workflow for 3, pulamos corte
+        # If workflow is 3, skip cutting
         if workflow_choice == "3":
             print(i18n("Workflow 3 (Subtitles Only): Skipping Cut and Edit."))
-            # Deduzir cuts folder apenas para log
+            # Infer cuts folder for logging only
             cuts_folder = os.path.join(project_folder, "cuts")
         else:
             cuts_folder = os.path.join(project_folder, "cuts")
@@ -610,7 +610,7 @@ def main():
         burn_subtitles_option = True 
         if burn_subtitles_option:
             print(i18n("Processing subtitles..."))
-            # transcribe_cuts removido: JSON de legenda já é gerado no corte
+            # transcribe_cuts removed: subtitle JSON is already generated during the cut
             # transcribe_cuts.transcribe(project_folder=project_folder)
             
             # --- Translation Integration ---
@@ -627,7 +627,7 @@ def main():
             
 
             
-            # Passa o dicionário desempacotado como argumentos, mais o project_folder
+            # Pass the unpacked dictionary as arguments, plus project_folder
             try:
                 adjust_subtitles.adjust(project_folder=project_folder, **sub_config)
                 burn_subtitles.burn(project_folder=project_folder)
@@ -641,7 +641,7 @@ def main():
         else:
             print(i18n("Subtitle burning skipped."))
 
-        # Organização Final (Opcional, pois agora já está tudo em project_folder)
+        # Final organization (optional, since everything is already in project_folder)
         # organize_output.organize(project_folder=project_folder)
         
         # --- Save Processing Configuration ---

@@ -35,10 +35,10 @@ def cut(segments, project_folder="tmp", skip_video=False):
         else:
             video_codec = "h264_nvenc"
 
-        # Procurar input_video.mp4 no project_folder ou tmp
+        # Look for input.mp4 in project_folder or tmp
         input_file = os.path.join(project_folder, "input.mp4")
         if not os.path.exists(input_file):
-            # Tenta fallback legado
+            # Try legacy fallback
             input_file_legacy = os.path.join(project_folder, "input_video.mp4")
             if os.path.exists(input_file_legacy):
                 input_file = input_file_legacy
@@ -46,15 +46,15 @@ def cut(segments, project_folder="tmp", skip_video=False):
                 print(f"Input file not found in {project_folder}")
                 return
 
-        # Pasta de saida para os cortes
+        # Output folder for cuts
         cuts_folder = os.path.join(project_folder, "cuts")
         os.makedirs(cuts_folder, exist_ok=True)
         
-        # Pasta de saida para legendas json cortadas
+        # Output folder for cut subtitle JSONs
         subs_folder = os.path.join(project_folder, "subs")
         os.makedirs(subs_folder, exist_ok=True)
 
-        # Input JSON (Transkription original)
+        # Input JSON (original transcription)
         input_json_path = os.path.join(project_folder, "input.json")
 
         segments = response.get("segments", [])
@@ -62,7 +62,7 @@ def cut(segments, project_folder="tmp", skip_video=False):
             start_time = segment.get("start_time", "00:00:00")
             duration = segment.get("duration", 0)
 
-            # Heurística para duration:
+            # Heuristic for duration:
             if isinstance(duration, (int, float)):
                 if duration < 1000:
                     duration_seconds = float(duration)
@@ -70,24 +70,24 @@ def cut(segments, project_folder="tmp", skip_video=False):
                     duration_seconds = duration / 1000.0
                 duration_str = f"{duration_seconds:.3f}"
             else:
-                # Tenta converter string (HH:MM:SS ou float str)
+                # Try converting string (HH:MM:SS or float str)
                 try:
                     duration_seconds = float(duration)
                     duration_str = f"{duration_seconds:.3f}"
                 except ValueError:
-                    # Assumindo formato hh:mm:ss se nao for float
-                     # Implementar parser se necessario, mas assumindo float por enquanto baseado no historico
+                    # Assume hh:mm:ss format if not float
+                     # Implement parser if needed, but assume float for now based on history
                     duration_seconds = 0
                     duration_str = duration
             
-            # Heurística para start_time:
+            # Heuristic for start_time:
             if isinstance(start_time, (int, float)):
-                if start_time > 10000: # Se for milisegundos grandes? Assumindo segundos ou HHMMSS?
-                   # O código original: if start_time int -> start_time/1000.0.
-                   # Vamos manter a lógica original: int -> milisegundos
+                if start_time > 10000: # Large milliseconds? Assuming seconds or HHMMSS?
+                   # Original code: if start_time int -> start_time/1000.0.
+                   # Keep the original logic: int -> milliseconds
                    pass
             
-            # Refazendo a logica original exata para seguranca e capturando o float:
+            # Redoing the exact original logic for safety and capturing the float:
             if isinstance(start_time, int):
                 start_time_seconds = start_time / 1000.0
                 start_time_str = f"{start_time_seconds:.3f}"
@@ -95,18 +95,18 @@ def cut(segments, project_folder="tmp", skip_video=False):
                  start_time_seconds = start_time
                  start_time_str = f"{start_time_seconds:.3f}"
             else:
-                # String "00:00:00" ou "12.34"
+                # String "00:00:00" or "12.34"
                 try:
                     start_time_seconds = float(start_time)
                     start_time_str = f"{start_time_seconds:.3f}"
                 except:
-                    # Se for HH:MM:SS, ffmpeg aceita, mas precisamos converter para float para o json cutter
-                    # Função auxiliar simples
+                    # If HH:MM:SS, ffmpeg accepts it, but we need float for the json cutter
+                    # Simple helper
                     h, m, s = str(start_time).split(':')
                     start_time_seconds = int(h) * 3600 + int(m) * 60 + float(s)
                     start_time_str = str(start_time)
 
-            # Título para nome de arquivo
+            # Title for filename
             title = segment.get("title", f"Segment_{i}")
             safe_title = "".join([c for c in title if c.isalnum() or c in " _-"]).strip()
             safe_title = safe_title.replace(" ", "_")[:60]
@@ -166,7 +166,7 @@ def cut(segments, project_folder="tmp", skip_video=False):
             # --- JSON CUTTING (ALWAYS RUN) ---
             end_time_seconds = start_time_seconds + float(duration_seconds)
             
-            # Nome do json correspondente ao vídeo FINAL com titulo
+            # JSON name matching the FINAL video with title
             json_output_filename = f"{base_name}_processed.json"
             json_output_path = os.path.join(subs_folder, json_output_filename)
             

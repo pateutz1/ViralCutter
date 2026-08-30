@@ -820,10 +820,10 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
         <hr>
         <div style='text-align: center; font-size: 0.9em; color: #777;'>
             <p>
-                <strong>{i18n('Desenvolvido por Rafael Godoy')}</strong>
+                <strong>{i18n('Developed by Rafael Godoy')}</strong>
                 <br>
-                {i18n('Apoie o projeto, qualquer valor é bem-vindo:')} 
-                <a href='https://nubank.com.br/pagar/1ls6a4/0QpSSbWBSq' target='_blank'><strong>{i18n('Apoiar via PIX')}</strong></a>
+                {i18n('Support the project, any amount is welcome:')} 
+                <a href='https://nubank.com.br/pagar/1ls6a4/0QpSSbWBSq' target='_blank'><strong>{i18n('Support via PIX')}</strong></a>
                 <br>
                 {i18n('100% local • open source • no subscription required')} 
             </p>

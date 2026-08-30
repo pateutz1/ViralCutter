@@ -6,95 +6,95 @@
 - **Raw Segment Repair**: Implemented automatic detection and repair of segments that lack timestamp information (e.g. manually crafted JSON with just reference tags). The system now recalculates start/end times using the transcript alignment logic.
 - **Duration Constraint Hardening**: The timestamp alignment logic now strictly enforces the user-defined `min_duration`, effectively extending segments that the AI might have outputted as too short.
 
-## Suporte a GGUF e Ajustes de Link
+## GGUF Support and Link Fixes
 
-### Novidades
-- **Suporte a GGUF**: colocado suporte a gguf para llm local.
-- **Link Público**: ajustado diretórios de link público.
+### What's New
+- **GGUF Support**: added GGUF support for local LLMs.
+- **Public Link**: adjusted public link directories.
 
-## Melhorias de Qualidade de Vídeo, Legendas e Processamento
+## Video Quality, Subtitles, and Processing Improvements
 
-### Novidades
+### What's New
 
-- **Aprimoramento de prompt para LLM**: melhorias no prompt para permitir que o modelo de linguagem compreenda melhor o contexto do conteúdo.
-- **Aprimoramento na detecção facial**: melhorias na identificação de rostos quando várias pessoas estão falando simultaneamente.
-- **Seleção de Qualidade de Vídeo**: agora é possível escolher a qualidade desejada para download de vídeos (Melhor, 1080p, 720p, 480p) diretamente pela WebUI ou CLI, permitindo otimizar entre velocidade e uso de armazenamento.
-- **Controle de Legendas do YouTube**: adicionada a opção de ignorar o download de legendas oficiais do YouTube, permitindo forçar uma nova transcrição via Whisper, se desejado.
-- **Suporte a VTT**: o script de transcrição foi aprimorado para oferecer suporte a arquivos de legenda `.vtt` para alinhamento, garantindo maior compatibilidade.
-- **Tradução de legendas em JSON com destaque palavra por palavra**: adicionada a tradução de legendas no formato JSON, permitindo highlight e sincronização word-by-word em outro idioma durante a exibição.
+- **LLM prompt improvements**: prompt updates so the language model better understands content context.
+- **Face detection improvements**: better identification of faces when several people are speaking at the same time.
+- **Video Quality Selection**: you can now choose download quality (Best, 1080p, 720p, 480p) from the WebUI or CLI, to balance speed and storage use.
+- **YouTube Subtitle Control**: added an option to skip downloading official YouTube subtitles, so a new Whisper transcription can be forced if desired.
+- **VTT Support**: the transcription script now supports `.vtt` subtitle files for alignment, for better compatibility.
+- **JSON subtitle translation with word-by-word highlight**: added translation of JSON subtitles, enabling word-by-word highlight and sync in another language during playback.
 
-### Melhorias e Otimizações
+### Improvements and Optimizations
 
-- **yt-dlp mais robusto**: corrigidos problemas em que downloads de vídeo estavam sendo salvos como “Unknown_Video” e exibiam progresso incorreto. Também foram adicionados logs de progresso mais precisos e suporte aprimorado ao download de legendas.
-- **Otimização de Legendas do YouTube**: quando legendas do YouTube estão disponíveis, o sistema agora faz o download automático e as utiliza apenas para alinhamento, pulando o processo pesado e demorado de transcrição. Isso acelera significativamente o processamento de vídeos que já possuem legendas.
+- **More robust yt-dlp**: fixed videos being saved as “Unknown_Video” and showing incorrect progress. Also added more accurate progress logs and improved subtitle download support.
+- **YouTube Subtitle Optimization**: when YouTube subtitles are available, the system now downloads them automatically and uses them only for alignment, skipping the heavy, slow transcription step. This significantly speeds up processing of videos that already have captions.
 
 
 ## Active Speaker & Face Controls
 
-### Controles Avançados de Face e Falante Ativo
-- **Filtros de Face**: Controle granular para ignorar rostos pequenos, definir limite de confiança minimiza falsos positivos e "Zona Morta" para estabilizar a câmera.
-- **Experimental: Active Speaker**: Novo modo experimental que tenta focar na pessoa que está falando (detecção de boca aberta e movimento), em vez de sempre dividir a tela.
-- **Legendas**: Opção para remover pontuação automaticamente.
+### Advanced Face and Active Speaker Controls
+- **Face Filters**: Granular control to ignore small faces, set a confidence threshold to reduce false positives, and a "Dead Zone" to stabilize the camera.
+- **Experimental: Active Speaker**: New experimental mode that tries to focus on the person speaking (open-mouth and motion detection) instead of always splitting the screen.
+- **Subtitles**: Option to strip punctuation automatically.
 
-## Editor de Legenda JSON
+## JSON Subtitle Editor
 
-### Funcionalidades
-- **Editor de Legendas**: Adicionado um editor de legendas simples, dentro das limitações do Gradio, para corrigir erros de ortografia ocorridos durante o uso do WhisperX.
+### Features
+- **Subtitle Editor**: Added a simple subtitle editor, within Gradio's limits, to fix spelling errors from WhisperX.
 
-### Correções
-- **Geral**: Alguns Fix Colab e melhorias na geração de viral segments.
+### Fixes
+- **General**: Some Colab fixes and improvements to viral segment generation.
 
 ## Gradio WebUI & UV Installation
 
-### Nova Interface Web (Gradio)
-- **OpusClip Inspired**: Nova interface gráfica construída com Gradio, inspirada no design do OpusClip, oferecendo uma experiência de usuário moderna e intuitiva.
-- **Funcionalidades da UI**: Ajustes completos para garantir que todas as funcionalidades da ferramenta estejam acessíveis e operantes através da nova interface.
+### New Web Interface (Gradio)
+- **OpusClip Inspired**: New Gradio UI inspired by the OpusClip design, with a modern, intuitive user experience.
+- **UI Features**: Full adjustments so every tool feature is accessible and working through the new interface.
 
-### Instalação e Infraestrutura
-- **Instalação via UV**: Criação de script `.bat` para instalação otimizada de dependências utilizando o `uv`, acelerando o processo de setup.
-- **Fixes Gerais**: Correções em diversos componentes que estavam quebrados ou instáveis, garantindo maior estabilidade na execução via UI.
+### Installation and Infrastructure
+- **UV Installation**: Created a `.bat` script for optimized dependency install via `uv`, speeding up setup.
+- **General Fixes**: Fixes across components that were broken or unstable, improving stability when running via the UI.
 
 ## WebUI 2.0 & Enhanced Configuration
 
 ### WebUI Overhaul
-- **Dark & Modern UI**: Interface completamente redesenhada com tema escuro e layout em grid responsivo (estilo Opus.pro) para a galeria de vídeos.
-- **Dynamic Configuration**: Componentes da interface agora reagem dinamicamente à escolha do Backend de IA, atualizando automaticamente a lista de modelos disponíveis e o tamanho sugerido de chunk.
-- **Improved Controls**: Controle granular sobre `Face Detect Interval`, `Skip Prompts`, e `Chunk Size` diretamente na interface web.
-- **Refactoring**: Código da WebUI refatorado e modularizado (`library.py` separado do `app.py`) para melhor manutenção.
+- **Dark & Modern UI**: Interface fully redesigned with a dark theme and responsive grid layout (Opus.pro style) for the video gallery.
+- **Dynamic Configuration**: Interface components now react dynamically to the AI Backend choice, automatically updating the available model list and the suggested chunk size.
+- **Improved Controls**: Granular control over `Face Detect Interval`, `Skip Prompts`, and `Chunk Size` directly in the web interface.
+- **Refactoring**: WebUI code refactored and modularized (`library.py` split from `app.py`) for easier maintenance.
 
 ### Core & CLI
-- **Arguments Expansion**: `main_improved.py` agora aceita argumentos de linha de comando para `--chunk-size` e `--ai-model-name`, permitindo override total da configuração.
-- **Script Update**: `create_viral_segments.py` atualizado para respeitar os parâmetros passados via CLI, priorizando-os sobre o arquivo de configuração.
+- **Arguments Expansion**: `main_improved.py` now accepts command-line arguments for `--chunk-size` and `--ai-model-name`, allowing a full override of the configuration.
+- **Script Update**: `create_viral_segments.py` updated to respect CLI parameters, prioritizing them over the config file.
 
 ## Fix 2 faces
 
-### Melhorias na Detecção Facial e Layout
-- **Consistência Visual (2 Faces)**: Implementada lógica para "travar" a identidade dos rostos nas posições superior e inferior, impedindo que os participantes troquem de lugar durante o vídeo.
-- **Lógica de Fallback Inteligente**: Caso o rosto não seja detectado no frame atual, o sistema agora tenta recuperar a posição baseada no frame anterior, posterior ou na última coordenada válida conhecida.
-- **Intervalo de Detecção Personalizável**: Adicionada configuração para o usuário escolher a frequência da varredura facial, permitindo otimizar o tempo de renderização.
+### Face Detection and Layout Improvements
+- **Visual Consistency (2 Faces)**: Implemented logic to "lock" face identities in the top and bottom positions, preventing participants from swapping places during the video.
+- **Smart Fallback Logic**: If a face is not detected in the current frame, the system now tries to recover the position from the previous frame, the next frame, or the last known valid coordinate.
+- **Customizable Detection Interval**: Added a setting so the user can choose how often face scanning runs, to optimize render time.
 
-### Correções de Legendas
-- **Correção de Sobreposição**: Resolvido bug onde legendas apareciam sobrepostas em momentos de fala rápida.
-- **Refinamento de Centralização (2 Faces)**: Ajustes adicionais no cálculo de posição para garantir que a legenda fique perfeitamente centralizada no modo dividido.
+### Subtitle Fixes
+- **Overlap Fix**: Fixed a bug where subtitles overlapped during fast speech.
+- **Centering Refinement (2 Faces)**: Extra position-calculation tweaks so the subtitle stays perfectly centered in split-screen mode.
 
-## Atualizações Anteriores
+## Previous Updates
 
-### Refatoração e Melhorias de Código
-- **Refatoração do Script Principal**: Criação e aprimoramento do `main_improved.py` para melhorar a estrutura e manutenibilidade do pipeline de processamento.
-- **Padronização de Código (Inglês)**: Tradução completa de nomes de variáveis, funções e comentários internos para inglês, visando compatibilidade com padrões internacionais e colaboração open-source, mantendo logs de saída com suporte a i18n (`en_US`/`pt_BR`).
-- **Ajuste de Diretórios**: Reorganização da estrutura de pastas e caminhos de saída para maior organização dos arquivos gerados.
+### Refactoring and Code Improvements
+- **Main Script Refactor**: Created and improved `main_improved.py` to better structure and maintain the processing pipeline.
+- **Code Standardization (English)**: Fully translated variable names, functions, and internal comments to English for international open-source collaboration, while keeping output logs with i18n support (`en_US`/`pt_BR`).
+- **Directory Adjustments**: Reorganized folder structure and output paths for clearer generated files.
 
-### Configuração e IA
-- **Integração Multi-LLM**: Implementação de suporte ao **g4f** (GPT-4 Free) e **Google Gemini**.
-- **API Config**: Centralização das chaves e seleção de modelos no novo arquivo `api_config.json`, permitindo troca rápida de provedor de IA sem alterar o código.
-- **Gerenciamento de Prompts**: Criação do arquivo `prompt.txt` para edição fácil do prompt do sistema.
+### Configuration and AI
+- **Multi-LLM Integration**: Added support for **g4f** (GPT-4 Free) and **Google Gemini**.
+- **API Config**: Centralized keys and model selection in the new `api_config.json` file, so the AI provider can be switched without changing code.
+- **Prompt Management**: Created `prompt.txt` for easy system-prompt editing.
 
-### Legendas e Transcrição (Whisper)
-- **Correções no Whisper**: Solução robusta para erros de `unpickling`, conflitos de DLLs (`libprotobuf`, `torchaudio`) e detecção de GPU.
-- **Otimização do Fluxo (Slicing)**: O vídeo original é transcrito apenas uma vez. Os cortes reutilizam o JSON original, eliminando a re-transcrição e acelerando o processo.
-- **Posicionamento de Legendas**: Correção da lógica de alinhamento para centralização no modo "2-face".
+### Subtitles and Transcription (Whisper)
+- **Whisper Fixes**: Robust handling of `unpickling` errors, DLL conflicts (`libprotobuf`, `torchaudio`), and GPU detection.
+- **Flow Optimization (Slicing)**: The original video is transcribed only once. Cuts reuse the original JSON, eliminating re-transcription and speeding up the process.
+- **Subtitle Positioning**: Fixed alignment logic for centering in "2-face" mode.
 
-### Processamento de Vídeo e Detecção Facial
-- **Novo Motor: InsightFace**: Adição da biblioteca `InsightFace` como motor de detecção facial de alta precisão.
-- **MediaPipe**: Manutenção e correção de erros no fallback para o MediaPipe.
-- **Limpeza de Logs**: Redução da verbosidade dos logs do FFmpeg no console.
+### Video Processing and Face Detection
+- **New Engine: InsightFace**: Added the `InsightFace` library as a high-accuracy face detection engine.
+- **MediaPipe**: Maintained and fixed errors in the MediaPipe fallback.
+- **Log Cleanup**: Reduced FFmpeg console log verbosity.

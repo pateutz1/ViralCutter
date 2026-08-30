@@ -9,15 +9,15 @@ import subprocess
 import urllib.request
 import urllib.error
 
-# Configura stdout para evitar erros de encoding no Windows (substitui caracteres inválidos por ?)
+# Configure stdout to avoid encoding errors on Windows (replace invalid characters with ?)
 if sys.stdout and hasattr(sys.stdout, 'buffer'):
     try:
-        # Mantém encoding original mas ignora erros (substitui por ?)
+        # Keep original encoding but ignore errors (replace with ?)
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding=sys.stdout.encoding or 'utf-8', errors='replace', line_buffering=True)
     except:
         pass
 
-# Tenta importar bibliotecas de IA opcionalmente
+# Try importing optional AI libraries
 try:
     import google.generativeai as genai
     HAS_GEMINI = True
@@ -32,10 +32,10 @@ except ImportError:
 
 def clean_json_response(response_text):
     """
-    Limpa a resposta focando em encontrar o objeto JSON que contém a chave "segments".
-    Estratégia: 
-    1. Busca a palavra "segments", encontra o '{' anterior e usa raw_decode.
-    2. Fallback: Parsear lista de segmentos item a item (recuperação de JSON truncado).
+    Clean the response focusing on finding the JSON object that contains the "segments" key.
+    Strategy:
+    1. Search for the word "segments", find the preceding '{', and use raw_decode.
+    2. Fallback: Parse the segment list item by item (recovery of truncated JSON).
     """
     if not isinstance(response_text, str):
         response_text = str(response_text)
@@ -43,41 +43,41 @@ def clean_json_response(response_text):
     if not response_text:
         return {"segments": []}
 
-    # 1. Limpeza preliminar
-    # Remove tags de pensamento (DeepSeek R1)
+    # 1. Preliminary cleanup
+    # Remove thinking tags (DeepSeek R1)
     response_text = re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL)
     
-    # Normaliza escapes excessivos (\n virando \\n) e aspas se parecer necessário
+    # Normalize excessive escapes (\n becoming \\n) and quotes if needed
     try:
         if "\\n" in response_text or "\\\"" in response_text:
-             # Tenta um decode básico de escapes
+             # Try a basic escape decode
              response_text = response_text.replace("\\n", "\n").replace("\\\"", "\"").replace("\\'", "'")
     except:
         pass
 
-    # 2. Busca pela palavra-chave "segments"
-    # Procura índices de todas as ocorrências de 'segments'
+    # 2. Search for the "segments" keyword
+    # Find indices of all occurrences of 'segments'
     matches = [m.start() for m in re.finditer(r'segments', response_text)]
     
     if not matches:
-        # Se não achou segments, retorna vazio
+        # If segments not found, return empty
         return {"segments": []}
 
-    # Tenta extrair JSON válido a partir de cada ocorrência
+    # Try extracting valid JSON from each occurrence
     for match_idx in matches:
-        # Procura o '{' mais próximo ANTES de "segments"
-        # Limita busca a 5000 chars para trás para performance
+        # Find the nearest '{' BEFORE "segments"
+        # Limit search to 5000 chars backward for performance
         start_search = max(0, match_idx - 5000)
         snippet_before = response_text[start_search:match_idx]
         
-        # Encontra o ÚLTIMO '{' no snippet
+        # Find the LAST '{' in the snippet
         last_open_rel = snippet_before.rfind('{')
         
         if last_open_rel != -1:
             real_start = start_search + last_open_rel
             candidate_text = response_text[real_start:]
             
-            # Tentativa A: json.raw_decode
+            # Attempt A: json.raw_decode
             try:
                 decoder = json.JSONDecoder()
                 obj, _ = decoder.raw_decode(candidate_text)
@@ -86,7 +86,7 @@ def clean_json_response(response_text):
             except:
                 pass
             
-            # Tentativa B: ast.literal_eval
+            # Attempt B: ast.literal_eval
             try:
                 balance = 0
                 in_string = False
@@ -121,7 +121,7 @@ def clean_json_response(response_text):
             except:
                 pass
 
-    # 3. Fallback: Extração bruta de markdown
+    # 3. Fallback: Raw markdown extraction
     try:
         match = re.search(r"```json(.*?)```", response_text, re.DOTALL)
         if match:
@@ -129,8 +129,8 @@ def clean_json_response(response_text):
     except:
         pass
         
-    # 4. LAST RESORT: Fragment Parser (Para JSON truncado/incompleto)
-    # Procura por "segments": [ e tenta parsear item por item
+    # 4. LAST RESORT: Fragment Parser (for truncated/incomplete JSON)
+    # Look for "segments": [ and try parsing item by item
     try:
         match_list = re.search(r'"segments"\s*:\s*\[', response_text)
         if match_list:
@@ -195,10 +195,10 @@ def preprocess_transcript_for_ai(segments):
 
 def call_gemini(prompt, api_key, model_name='gemini-2.5-flash-lite-preview-09-2025'):
     if not HAS_GEMINI:
-        raise ImportError("A biblioteca 'google-generativeai' não está instalada. Instale com: pip install google-generativeai")
+        raise ImportError("The 'google-generativeai' library is not installed. Install with: pip install google-generativeai")
     
     genai.configure(api_key=api_key)
-    # Usando modelo definido na config ou o padrão
+    # Using model defined in config or the default
     model = genai.GenerativeModel(model_name) 
     
     max_retries = 5
@@ -221,15 +221,15 @@ def call_gemini(prompt, api_key, model_name='gemini-2.5-flash-lite-preview-09-20
                 time.sleep(wait_time)
                 continue
             else:
-                print(f"Erro na API do Gemini: {e}")
+                print(f"Error in Gemini API: {e}")
                 return "{}"
     
-    print("Falha após max retries no Gemini.")
+    print("Failed after max retries on Gemini.")
     return "{}"
 
 def call_g4f(prompt, model_name="gpt-4o-mini"):
     if not HAS_G4F:
-        raise ImportError("A biblioteca 'g4f' não está instalada. Instale com: pip install g4f")
+        raise ImportError("The 'g4f' library is not installed. Install with: pip install g4f")
     
     max_retries = 3
     base_wait = 5
@@ -255,7 +255,7 @@ def call_g4f(prompt, model_name="gpt-4o-mini"):
                 return json.dumps(response)
 
             if not response:
-                print(f"[WARN] G4F retornou resposta vazia. Tentativa {attempt+1}/{max_retries}")
+                print(f"[WARN] G4F returned empty response. Attempt {attempt+1}/{max_retries}")
                 time.sleep(base_wait)
                 continue
             
@@ -268,12 +268,12 @@ def call_g4f(prompt, model_name="gpt-4o-mini"):
                 return str(response)
             
         except Exception as e:
-            print(f"[WARN] Erro na API do G4F (Tentativa {attempt+1}/{max_retries}): {e}")
+            print(f"[WARN] Error in G4F API (Attempt {attempt+1}/{max_retries}): {e}")
             if attempt < max_retries - 1:
                 wait_time = base_wait * (2 ** attempt)
                 time.sleep(wait_time)
             
-    print(f"Falha crítica após {max_retries} tentativas no G4F.")
+    print(f"Critical failure after {max_retries} attempts on G4F.")
     return "{}"
 
 def _http_json(url, headers, payload, timeout=180):
@@ -365,7 +365,7 @@ def call_groq(prompt, api_key, model_name="openai/gpt-oss-120b"):
         except Exception as e:
             last_error = e
             print(f"[WARN] Groq error: {e}")
-    print(f"Falha após max retries no Groq: {last_error}")
+    print(f"Failed after max retries on Groq: {last_error}")
     return "{}"
 
 def call_cloudflare(prompt, account_id, api_token, model_name="@cf/openai/gpt-oss-120b"):
@@ -401,7 +401,7 @@ def call_cloudflare(prompt, account_id, api_token, model_name="@cf/openai/gpt-os
         except Exception as e:
             last_error = e
             print(f"[WARN] Cloudflare LLM error: {e}")
-    print(f"Falha após max retries no Cloudflare: {last_error}")
+    print(f"Failed after max retries on Cloudflare: {last_error}")
     return "{}"
 
 def load_transcript(project_folder):
@@ -555,13 +555,13 @@ def process_segments(raw_segments, transcript_segments, min_duration, max_durati
             
             # Validate Duration (Min)
             if duration < tempo_minimo: 
-                print(f"[WARN] Segmento menor que duration min ({duration:.2f}s < {tempo_minimo}s). Estendendo para {tempo_minimo}s.")
+                print(f"[WARN] Segment shorter than min duration ({duration:.2f}s < {tempo_minimo}s). Extending to {tempo_minimo}s.")
                 duration = tempo_minimo
                 final_end_time = final_start_time + duration
             
             # Validate Duration (Max)
             if duration > tempo_maximo:
-                print(f"[WARN] Segmento excede max duration ({duration:.2f}s > {tempo_maximo}s). Cortando para {tempo_maximo}s.")
+                print(f"[WARN] Segment exceeds max duration ({duration:.2f}s > {tempo_maximo}s). Cutting to {tempo_maximo}s.")
                 final_end_time = final_start_time + tempo_maximo
                 duration = tempo_maximo
 
@@ -607,12 +607,12 @@ def process_segments(raw_segments, transcript_segments, min_duration, max_durati
     print(f"[DEBUG] Finished processing. {len(all_segments)} segments valid.")
 
     if output_count and len(all_segments) > output_count:
-        print(f"Filtrando os top {output_count} segmentos de {len(all_segments)} candidatos encontrados nos chunks.")
+        print(f"Filtering the top {output_count} segments from {len(all_segments)} candidates found in chunks.")
         all_segments = all_segments[:output_count]
 
     final_result = {"segments": all_segments}
     
-    # Validação básica de que temos start_time
+    # Basic validation that we have start_time
     validated_segments = []
     for seg in final_result['segments']:
         if 'start_time' in seg:
@@ -744,7 +744,7 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
                 if "cloudflare" in loaded_config: config["cloudflare"].update(loaded_config["cloudflare"])
                 if "selected_api" in loaded_config: config["selected_api"] = loaded_config["selected_api"]
         except Exception as e:
-            print(f"Erro ao ler api_config.json: {e}")
+            print(f"Error reading api_config.json: {e}")
 
     # Config Vars
     current_chunk_size = 15000
@@ -782,7 +782,7 @@ def create(num_segments, viral_mode, themes, tempo_minimo, tempo_maximo, ai_mode
         with open(prompt_path, 'r', encoding='utf-8') as f:
             system_prompt_template = f.read()
     else:
-        print("Aviso: prompt.txt não encontrado. Usando prompt interno.")
+        print("Warning: prompt.txt not found. Using internal prompt.")
         system_prompt_template = """You are a World-Class Viral Video Editor.
 {context_instruction}
 Analyze the transcript below with time tags (XXs). Find {amount} viral segments.
@@ -888,7 +888,7 @@ OUTPUT JSON ONLY:
 
     all_raw_segments = []
 
-    print(f"Processando {len(output_texts)} chunks usando modo: {ai_mode.upper()}")
+    print(f"Processing {len(output_texts)} chunks using mode: {ai_mode.upper()}")
 
     for i, prompt in enumerate(output_texts):
         response_text = ""
@@ -897,23 +897,23 @@ OUTPUT JSON ONLY:
             with open(manual_prompt_path, "w", encoding="utf-8") as f:
                 f.write(prompt)
         except Exception as e:
-            print(f"[ERRO] Falha ao salvar prompt.txt: {e}")
+            print(f"[ERROR] Failed to save prompt.txt: {e}")
         
         if ai_mode == "manual":
-            print(f"\n[INFO] O prompt foi salvo em: {manual_prompt_path}")
+            print(f"\n[INFO] Prompt saved at: {manual_prompt_path}")
             print("\n" + "="*60)
             print(f"CHUNK {i+1}/{len(output_texts)}")
             print("="*60)
-            print("COPIE O PROMPT ABAIXO (OU DO ARQUIVO GERADO) E COLE NA SUA IA PREFERIDA:")
+            print("COPY THE PROMPT BELOW (OR FROM THE GENERATED FILE) AND PASTE INTO YOUR PREFERRED AI:")
             print("-" * 20)
             print(prompt)
             print("-" * 20)
             print("="*60)
-            print("Cole o JSON de resposta abaixo e pressione ENTER.")
-            print("Dica: Se o JSON tiver múltiplas linhas, tente colar tudo de uma vez ou minificado.")
-            print("Se preferir, digite 'file' para ler de um arquivo 'tmp/response.json'.")
+            print("Paste the response JSON below and press ENTER.")
+            print("Tip: If the JSON has multiple lines, try pasting it all at once or minified.")
+            print("Alternatively, type 'file' to read from a 'tmp/response.json' file.")
             
-            user_input = input("JSON ou 'file': ")
+            user_input = input("JSON or 'file': ")
             
             if user_input.lower() == 'file':
                 try:
@@ -921,11 +921,11 @@ OUTPUT JSON ONLY:
                     with open(response_json_path, 'r', encoding='utf-8') as rf:
                         response_text = rf.read()
                 except FileNotFoundError:
-                    print(f"Arquivo {response_json_path} não encontrado.")
+                    print(f"File {response_json_path} not found.")
             else:
                 response_text = user_input
                 if response_text.strip().startswith("{") and not response_text.strip().endswith("}"):
-                    print("Parece incompleto. Cole o resto e dê Enter (ou Ctrl+C para cancelar):")
+                    print("Looks incomplete. Paste the rest and press Enter (or Ctrl+C to cancel):")
                     try:
                         rest = sys.stdin.read() 
                         response_text += rest
@@ -933,16 +933,16 @@ OUTPUT JSON ONLY:
                         pass
 
         elif ai_mode == "gemini":
-            print(f"Enviando chunk {i+1} para o Gemini (Model: {model_name})...")
+            print(f"Sending chunk {i+1} to Gemini (Model: {model_name})...")
             response_text = call_gemini(prompt, api_key, model_name=model_name)
         elif ai_mode == "g4f":
-            print(f"Enviando chunk {i+1} para o G4F (Model: {model_name})...")
+            print(f"Sending chunk {i+1} to G4F (Model: {model_name})...")
             response_text = call_g4f(prompt, model_name=model_name)
         elif ai_mode == "groq":
-            print(f"Enviando chunk {i+1} para o Groq (Model: {model_name})...")
+            print(f"Sending chunk {i+1} to Groq (Model: {model_name})...")
             response_text = call_groq(prompt, api_key, model_name=model_name)
         elif ai_mode == "cloudflare":
-            print(f"Enviando chunk {i+1} para o Cloudflare (Model: {model_name})...")
+            print(f"Sending chunk {i+1} to Cloudflare (Model: {model_name})...")
             cf_cfg = config.get("cloudflare") or {}
             response_text = call_cloudflare(
                 prompt,
@@ -960,16 +960,16 @@ OUTPUT JSON ONLY:
         except Exception as e:
             print(f"[WARN] Failed to save raw response: {e}")
 
-        # Processar resposta
+        # Process response
         try:
             data = clean_json_response(response_text)
             chunk_segments = data.get("segments", [])
-            print(f"Encontrados {len(chunk_segments)} segmentos neste chunk.")
+            print(f"Found {len(chunk_segments)} segments in this chunk.")
             all_raw_segments.extend(chunk_segments)
         except json.JSONDecodeError:
-            print(f"Erro: Resposta inválida.")
+            print(f"Error: Invalid response.")
         except Exception as e:
-            print(f"Erro desconhecido ao processar chunk: {e}")
+            print(f"Unknown error processing chunk: {e}")
 
     result = process_segments(
         all_raw_segments,

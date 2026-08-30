@@ -5,24 +5,24 @@ from pathlib import Path
 import tqdm.asyncio
 from deep_translator import GoogleTranslator
 
-# Lista de idiomas alvo
+# Target language list
 target_languages = ['en']
 
-# Dicionário de substituições por idioma
+# Substitution dictionary per language
 substituicoes_por_idioma = {
     'en': {
         # 'Original': 'Translation'
     },
 }
 
-# Configurações de tradução
+# Translation settings
 sentence_endings = ['.', '!', '?', ')', 'よ', 'ね', 'の', 'さ', 'ぞ', 'な', 'か', '！', '。', '」', '…']
 separator = " ◌ "
 separator_unjoin = separator.replace(' ', '')
 chunk_max_chars = 4999
 
 def substituir_texto(text, substituicoes):
-    """Função para substituir texto."""
+    """Function to replace text."""
     for old, new in substituicoes.items():
         text = text.replace(old, new)
     return text
@@ -122,34 +122,34 @@ def adjust_segments(segments):
         current_segment = segments[i]
         next_segment = segments[i + 1] if i < len(segments) - 1 else None
         
-        # Divide o texto em palavras
+        # Split the text into words
         text_words = current_segment['text'].split()
         
-        # Ajusta as palavras do segmento atual
+        # Adjust the words of the current segment
         current_segment['words'] = [
             {
                 'word': word,
                 'start': current_segment['start'] + (idx * (current_segment['end'] - current_segment['start']) / len(text_words)),
                 'end': current_segment['start'] + ((idx + 1) * (current_segment['end'] - current_segment['start']) / len(text_words)),
-                'score': 1.0  # Mantemos o score como 1.0 já que não temos informações precisas
+                'score': 1.0  # Keep score as 1.0 since we do not have precise information
             }
             for idx, word in enumerate(text_words)
         ]
         
-        # Ajusta o fim da última palavra do segmento atual
+        # Adjust the end of the last word of the current segment
         if current_segment['words']:
             last_word = current_segment['words'][-1]
             if next_segment:
-                # Estende até o início do próximo segmento ou até 2 segundos, o que ocorrer primeiro
+                # Extend to the start of the next segment or up to 2 seconds, whichever comes first
                 extended_end = min(next_segment['start'], last_word['start'] + 2)
             else:
-                # Se for o último segmento, estende por até 2 segundos
+                # If it is the last segment, extend by up to 2 seconds
                 extended_end = min(current_segment['end'] + 2, last_word['start'] + 2)
             
             last_word['end'] = extended_end
             current_segment['end'] = extended_end
         
-        # Ajusta o início do próximo segmento se necessário
+        # Adjust the start of the next segment if needed
         if next_segment and next_segment['words']:
             next_segment['words'][0]['start'] = next_segment['start']
     
@@ -211,7 +211,7 @@ async def translate_json_file(json_file_path: Path, translated_json_path: Path, 
             else:
                 print(f"\nWarning: Not enough translated words. Keeping original word: {word['word']}")
 
-    # Ajusta os segmentos após a tradução
+    # Adjust segments after translation
     segments = adjust_segments(segments)
 
     data['segments'] = segments
@@ -236,7 +236,7 @@ async def main():
                 output_file_path = os.path.join(folder_path, output_filename)
                 
                 if not os.path.exists(output_file_path):
-                    print(f'Traduzindo para {lang}: {filename}')
+                    print(f'Translating to {lang}: {filename}')
                     translated_data = await translate_json_file(Path(os.path.join(folder_path, filename)), Path(output_file_path), lang)
                     
                     if lang in substituicoes_por_idioma:
@@ -248,7 +248,7 @@ async def main():
                     with open(output_file_path, 'w', encoding='utf-8') as file:
                         json.dump(translated_data, file, ensure_ascii=False, indent=2)
 
-            # Realiza as substituições no arquivo original JSON após todas as traduções
+            # Apply substitutions to the original JSON file after all translations
             original_file_path = os.path.join(folder_path, filename)
             with open(original_file_path, 'r', encoding='utf-8') as file:
                 original_data = json.load(file)
@@ -261,7 +261,7 @@ async def main():
             with open(original_file_path, 'w', encoding='utf-8') as file:
                 json.dump(original_data, file, ensure_ascii=False, indent=2)
 
-    print('Traduções e substituições concluídas.')
+    print('Translations and substitutions completed.')
 
 async def translate_project_subs(project_folder: str, target_lang: str):
     """

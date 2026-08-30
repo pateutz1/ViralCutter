@@ -25,7 +25,7 @@ def _load_api_config():
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Erro ao ler api_config.json: {e}")
+        print(f"Error reading api_config.json: {e}")
         return {}
 
 
@@ -424,7 +424,7 @@ def _transcribe_audio(audio_path, backend, config):
 
 
 def transcribe(input_file, model_name="cloudflare", project_folder="tmp"):
-    print(i18n(f"Iniciando transcrição de {input_file}..."))
+    print(i18n(f"Starting transcription of {input_file}..."))
     print(f"DEBUG: Python: {sys.executable}")
     start_time = time.time()
 
@@ -439,7 +439,7 @@ def transcribe(input_file, model_name="cloudflare", project_folder="tmp"):
     json_file = os.path.join(output_folder, f"{base_name}.json")
 
     if os.path.exists(srt_file) and os.path.exists(tsv_file) and os.path.exists(json_file):
-        print("Os arquivos SRT, TSV e JSON já existem. Pulando a transcrição.")
+        print("SRT, TSV, and JSON files already exist. Skipping transcription.")
         return srt_file, tsv_file
 
     config = _load_api_config()
@@ -454,7 +454,7 @@ def transcribe(input_file, model_name="cloudflare", project_folder="tmp"):
 
     try:
         if start_segments:
-            print("--- MODO LEGENDAS YOUTUBE (sem ASR) ---")
+            print("--- YOUTUBE SUBTITLES MODE (no ASR) ---")
             result = {
                 "segments": _normalize_segments(start_segments),
                 "language": "en",
@@ -469,16 +469,16 @@ def transcribe(input_file, model_name="cloudflare", project_folder="tmp"):
             except OSError:
                 pass
 
-        print("Salvando resultados...")
+        print("Saving results...")
         srt_file, tsv_file = _write_outputs(result, output_folder, base_name)
         elapsed = time.time() - start_time
-        print(f"Processamento concluído em {int(elapsed // 60)}m {int(elapsed % 60)}s.")
+        print(f"Processing completed in {int(elapsed // 60)}m {int(elapsed % 60)}s.")
     except Exception as e:
-        print(f"ERRO CRÍTICO na transcrição: {e}")
+        print(f"CRITICAL ERROR in transcription: {e}")
         import traceback
         traceback.print_exc()
         raise
 
     if not os.path.exists(srt_file):
-        print(f"AVISO: Arquivo SRT {srt_file} não encontrado após execução.")
+        print(f"WARNING: SRT file {srt_file} not found after execution.")
     return srt_file, tsv_file

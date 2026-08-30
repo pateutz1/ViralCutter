@@ -4,110 +4,110 @@ import numpy as np
 
 def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.2):
     """
-    Recorta uma região baseada no rosto mantendo o aspect ratio do target.
-    Previne deformação (esticar/espremer).
+    Crop a region based on the face while keeping the target aspect ratio.
+    Prevents deformation (stretching/squeezing).
     """
     img_h, img_w, _ = frame.shape
     x, y, w, h = face_box
     
-    # Centro do rosto
+    # Face center
     cx = x + w // 2
     cy = y + h // 2
     
-    # Dimensão base do rosto (maior lado para garantir cobertura)
+    # Base face dimension (larger side to ensure coverage)
     face_size = max(w, h)
     
-    # Altura desejada do crop (altura do rosto * fator de zoom/afastamento)
-    # zoom_out_factor: quanto maior, mais afastado (mais cenário)
+    # Desired crop height (face height * zoom-out factor)
+    # zoom_out_factor: larger means more zoomed out (more scenery)
     req_h = face_size * zoom_out_factor
     
-    # Aspect Ratio alvo (1080 / 960 = 1.125)
+    # Target Aspect Ratio (1080 / 960 = 1.125)
     target_ar = target_w / target_h
     
-    # Calcular largura e altura do crop mantendo AR
+    # Calculate crop width and height keeping AR
     crop_h = req_h
     crop_w = crop_h * target_ar
     
-    # Verificar limitações da imagem original (não podemos cortar mais que existe)
-    # Se a largura necessária for maior que a imagem, limitamos pela largura
+    # Check original image limits (we cannot crop more than exists)
+    # If required width is larger than the image, limit by width
     if crop_w > img_w:
         crop_w = float(img_w)
         crop_h = crop_w / target_ar
         
-    # Se a altura necessária for maior que a imagem, limitamos pela altura
+    # If required height is larger than the image, limit by height
     if crop_h > img_h:
         crop_h = float(img_h)
         crop_w = crop_h * target_ar
         
-    # Converter para inteiros
+    # Convert to integers
     crop_w = int(crop_w)
     crop_h = int(crop_h)
     
-    # Calcular coordenadas top-left do crop centralizado no rosto
+    # Calculate top-left crop coordinates centered on the face
     x1 = int(cx - crop_w // 2)
     y1 = int(cy - crop_h // 2)
     
-    # Ajuste de bordas (Clamp) deslisando a janela se possível
-    # Se sair pela esquerda, encosta na esquerda
+    # Edge clamp by sliding the window if possible
+    # If it goes past the left, snap to the left
     if x1 < 0: 
         x1 = 0
-    # Se sair pela direita, encosta na direita
+    # If it goes past the right, snap to the right
     elif x1 + crop_w > img_w: 
         x1 = img_w - crop_w
         
-    # Se sair por cima
+    # If it goes past the top
     if y1 < 0: 
         y1 = 0
-    # Se sair por baixo
+    # If it goes past the bottom
     elif y1 + crop_h > img_h: 
         y1 = img_h - crop_h
     
-    # Verificação de segurança final se a imagem for menor que o crop (embora lógica acima evite)
+    # Final safety check if the image is smaller than the crop (logic above should avoid this)
     x2 = x1 + crop_w
     y2 = y1 + crop_h
     
     # Crop
     cropped = frame[y1:y2, x1:x2]
     
-    # Se o crop falhar (tamanho 0), retorna preto
+    # If crop fails (size 0), return black
     if cropped.size == 0 or cropped.shape[0] == 0 or cropped.shape[1] == 0:
         return np.zeros((target_h, target_w, 3), dtype=np.uint8)
 
-    # Redimensionar para o tamanho alvo final (1080x960)
-    # Como garantimos o AR, o resize mantém a proporção correta
+    # Resize to the final target size (1080x960)
+    # Since we kept AR, resize preserves the correct proportion
     resized = cv2.resize(cropped, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
     return resized
 
 def crop_and_resize_two_faces(frame, face_positions, zoom_out_factor=2.2):
     """
-    Recorta e redimensiona dois rostos detectados no frame, ajustando para uma composição vertical
-    1080x1920 onde cada rosto ocupa metade da tela (1080x960).
+    Crop and resize two detected faces in the frame, adjusting for a vertical composition
+    1080x1920 where each face occupies half the screen (1080x960).
     """
-    # Target dimensoes para cada metade
+    # Target dimensions for each half
     target_w = 1080
     target_h = 960
     
-    # Se não temos 2 faces, fallback (segurança)
+    # If we do not have 2 faces, fallback (safety)
     if len(face_positions) < 2:
         return np.zeros((1920, 1080, 3), dtype=np.uint8)
 
-    # Primeiro rosto (Topo)
+    # First face (Top)
     face1_img = crop_and_maintain_ar(frame, face_positions[0], target_w, target_h, zoom_out_factor)
     
-    # Segundo rosto (Embaixo)
+    # Second face (Bottom)
     face2_img = crop_and_maintain_ar(frame, face_positions[1], target_w, target_h, zoom_out_factor)
     
-    # Compor imagem final (Stack Vertical)
+    # Compose final image (Vertical Stack)
     result_frame = np.vstack((face1_img, face2_img))
     
     return result_frame
 
 
 def detect_face_or_body_two_faces(frame, face_detection, face_mesh, pose):
-    # Converter a imagem para RGB
+    # Convert the image to RGB
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # Processar a detecção de rosto
+    # Process face detection
     results_face_detection = face_detection.process(frame_rgb)
     results_face_mesh = face_mesh.process(frame_rgb)
     results_pose = pose.process(frame_rgb)
@@ -145,7 +145,7 @@ def detect_face_or_body_two_faces(frame, face_detection, face_mesh, pose):
     if face_positions_mesh:
         return face_positions_mesh
 
-    # Se nenhum rosto for detectado, usar a pose para estimar o corpo
+    # If no face is detected, use pose to estimate the body
     if results_pose.pose_landmarks:
         x_coords = [lmk.x for lmk in results_pose.pose_landmarks.landmark]
         y_coords = [lmk.y for lmk in results_pose.pose_landmarks.landmark]

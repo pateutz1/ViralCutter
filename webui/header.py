@@ -27,13 +27,13 @@ badges = """
  
 </span>
 
-<!-- ÍCONE DO COLAB ADICIONADO AQUI -->
+<!-- COLAB ICON ADDED HERE -->
 <span style="margin-right: 5px;">
 
 [ ![Open In Colab](https://img.shields.io/badge/Open%20in%20Colab-%23F9AB00.svg?style=for-the-badge&logo=googlecolab&logoColor=white) ]("https://colab.research.google.com/drive/1UZKzeqjIeEyvq9nPx7s_4mU6xlkZQn_R")
 
 </span>
-<!-- FIM DA ADIÇÃO -->
+<!-- END OF ADDITION -->
 
 <span>
 
@@ -47,27 +47,27 @@ description = f"""
 <div style="text-align: center;">
 
 <h1>ViralCutter</h1>
-<p style="font-size: 1.1em; margin-bottom: 20px;">{i18n('Bem-vindo ao ViralCutter! A ferramenta definitiva para transformar vídeos longos em clipes virais com o poder da IA.')}</p>
+<p style="font-size: 1.1em; margin-bottom: 20px;">{i18n('Welcome to ViralCutter! The ultimate tool to transform long videos into viral clips with the power of AI.')}</p>
 
 <div style="display: inline-block; text-align: left; background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-<p style="margin-bottom: 10px;"><strong>{i18n('Aqui você pode:')}</strong></p>
+<p style="margin-bottom: 10px;"><strong>{i18n('Here you can:')}</strong></p>
 <ul style="margin: 0; padding-left: 20px;">
-<li>✂️ <strong>{i18n('Cortes Automáticos')}</strong>: {i18n('Identifique e corte os melhores momentos baseado em viralidade.')}</li>
-<li>📝 <strong>{i18n('Legendas Dinâmicas')}</strong>: {i18n('Crie legendas estéticas (Estilo Hormozi) automaticamente.')}</li>
-<li>🤖 <strong>{i18n('IA Avançada')}</strong>: {i18n('Suporte integrado para')} <strong>Gemini</strong> e <strong>G4F</strong>.</li>
-<li>📱 <strong>{i18n('Foco em Vertical')}</strong>: {i18n('Detecção facial inteligente para vídeos verticais (TikTok/Shorts/Reels).')}</li>
+<li>✂️ <strong>{i18n('Automatic Cuts')}</strong>: {i18n('Identify and cut the best moments based on virality.')}</li>
+<li>📝 <strong>{i18n('Dynamic Subtitles')}</strong>: {i18n('Create aesthetic subtitles (Hormozi Style) automatically.')}</li>
+<li>🤖 <strong>{i18n('Advanced AI')}</strong>: {i18n('Integrated support for')} <strong>Gemini</strong> and <strong>G4F</strong>.</li>
+<li>📱 <strong>{i18n('Vertical Focus')}</strong>: {i18n('Smart face detection for vertical videos (TikTok/Shorts/Reels).')}</li>
 </ul>
 </div>
 
 <br>
 <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
     <a href='https://www.youtube.com/@aihubbrasil' target='_blank'>
-        <img src="https://img.shields.io/badge/AI_HUB_Brasil-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Youtube do AI HUB Brasil">
+        <img src="https://img.shields.io/badge/AI_HUB_Brasil-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="AI HUB Brasil YouTube">
     </a>
     <a href='https://www.youtube.com/@godoyy' target='_blank'>
-        <img src="https://img.shields.io/badge/Canal_Pessoal_Godoyy-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Canal Pessoal Godoyy">
+        <img src="https://img.shields.io/badge/Godoyy_Personal_Channel-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Godoyy Personal Channel">
     </a>
 </div>
-<br>{i18n('Este projeto foi desenvolvido para a comunidade do AI HUB Brasil.')}
+<br>{i18n('This project was developed for the AI HUB Brazil community.')}
 </div>
 """
