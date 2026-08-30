@@ -137,6 +137,7 @@ def main():
     parser.add_argument("--skip-prompts", action="store_true", help="Skip interactive prompts and use defaults/existing files")
     parser.add_argument("--video-quality", choices=["best", "1080p", "720p", "480p"], default="best", help="Video download quality")
     parser.add_argument("--skip-youtube-subs", action="store_true", help="Skip downloading YouTube subtitles")
+    parser.add_argument("--no-subtitles", action="store_true", help="Skip Whisper transcription and caption burning (saves STT quota)")
     parser.add_argument("--translate-target", help="Target language code for subtitle translation (e.g. 'pt', 'en').")
 
     args = parser.parse_args()
@@ -418,7 +419,9 @@ def main():
         print(f"Project Folder: {project_folder}")
         
         # 2. Transcribe
-        if workflow_choice == "3":
+        if args.no_subtitles:
+            print(i18n("Captions disabled (--no-subtitles): Skipping Whisper transcription."))
+        elif workflow_choice == "3":
             print(i18n("Workflow 3: Skipping Transcribe."))
             # We assume transcription exists (SRT/JSON) or we won't need it for 'adjust_subtitles' if it uses 'subs/*.json' which are created by 'cut_segments'
             # Actually 'adjust_subtitles' reads from 'project_folder/subs'.
@@ -607,7 +610,7 @@ def main():
                          print(f"Renamed (Workflow 3): {old_tl_name} -> {new_base_name}_timeline.json")
 
         # 6. Subtitles
-        burn_subtitles_option = True 
+        burn_subtitles_option = not args.no_subtitles
         if burn_subtitles_option:
             print(i18n("Processing subtitles..."))
             # transcribe_cuts removed: subtitle JSON is already generated during the cut

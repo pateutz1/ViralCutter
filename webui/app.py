@@ -190,7 +190,7 @@ def apply_experimental_preset(preset_name):
 
 def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode, 
                      face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone, focus_active_speaker, active_speaker_mar, active_speaker_score_diff, include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
-                     use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
+                     enable_captions, use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
                      h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target):
     
     global current_process
@@ -251,6 +251,9 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
     cmd.extend(["--model", model])
     cmd.extend(["--ai-backend", ai_backend])
     if api_key: cmd.extend(["--api-key", api_key])
+    if not enable_captions:
+        cmd.append("--no-subtitles")
+        cmd.append("--skip-youtube-subs")
     
     # New AI Params
     if ai_model_name: cmd.extend(["--ai-model-name", str(ai_model_name)])
@@ -477,6 +480,11 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, chunk_size_input])
 
                     model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value="cloudflare")
+                    enable_captions_input = gr.Checkbox(
+                        label=i18n("Enable Captions (Whisper)"),
+                        value=True,
+                        info=i18n("Uncheck to skip transcription and subtitle burning (saves STT quota)."),
+                    )
                     with gr.Row():
                         workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value="Full")
                         face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value="insightface")
@@ -631,7 +639,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                  workflow_input, face_model_input, face_mode_input, face_detect_interval_input, no_face_mode_input, 
                  face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input, focus_active_speaker_input, 
                  active_speaker_mar_input, active_speaker_score_diff_input, include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input,
-                 use_custom_subs, 
+                 enable_captions_input, use_custom_subs, 
                  # Expanded Manual Inputs mapping
                  font_name_input, font_size_input, font_color_input, highlight_color_input, 
                  outline_color_input, outline_thickness_input, shadow_color_input, shadow_size_input, 
