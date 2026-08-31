@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import subprocess
 
 TEXT_RISK_THRESHOLD = 0.18
@@ -73,8 +74,10 @@ def _rank_windows(
     stride=None,
     text_risks=None,
     max_text_frame_percent=15.0,
+    scene_changes=None,
+    scene_boundaries=None,
 ):
-    """Rank fixed-length windows and return non-overlapping selections."""
+    """Rank fixed-length windows and return scene-aligned, non-overlapping selections."""
     times = np.asarray(sample_times, dtype=np.float32)
     scores = np.asarray(activity_scores, dtype=np.float32)
     if times.size == 0 or scores.size != times.size or clip_len <= 0:
@@ -92,6 +95,53 @@ def _rank_windows(
     if not starts or abs(float(starts[-1]) - last_start) > 0.5:
         starts.append(last_start)
 
+    boundaries = np.asarray([], dtype=np.float32)
+    if scene_boundaries is not None:
+        candidate_boundaries = np.asarray(scene_boundaries, dtype=np.float32)
+        boundaries = candidate_boundaries[
+            np.isfinite(candidate_boundaries)
+            & (candidate_boundaries >= 0.0)
+            & (candidate_boundaries <= float(video_duration))
+        ]
+        starts.extend(float(value) for value in boundaries if first_start <= value <= last_start)
+    elif scene_changes is not None:
+        candidate_scenes = np.asarray(scene_changes, dtype=np.float32)
+        if candidate_scenes.size == times.size:
+            positive = candidate_scenes[candidate_scenes > 0.0]
+            if positive.size:
+                boundary_threshold = max(0.55, float(np.percentile(positive, 75)))
+                boundaries = times[candidate_scenes >= boundary_threshold]
+                starts.extend(float(value) for value in boundaries if first_start <= value <= last_start)
+
+    event_threshold = max(
+        float(np.percentile(scores, 75)),
+        float(np.median(scores) + 0.5 * np.std(scores)),
+    )
+    pre_roll = min(3.0, max(1.0, float(clip_len) * 0.20))
+    starts.extend(
+        max(first_start, min(last_start, float(event_time) - pre_roll))
+        for event_time in times[scores > event_threshold]
+    )
+
+    following_boundary_guard = min(5.0, max(1.0, float(clip_len) / 3.0))
+    preceding_boundary_guard = min(3.0, max(1.0, float(clip_len) * 0.20))
+    aligned_starts = []
+    for proposed in starts:
+        start = max(first_start, min(last_start, float(proposed)))
+        if boundaries.size:
+            following = boundaries[
+                (boundaries >= start) & (boundaries - start <= following_boundary_guard)
+            ]
+            preceding = boundaries[
+                (boundaries < start) & (start - boundaries <= preceding_boundary_guard)
+            ]
+            if following.size:
+                start = float(following[0])
+            elif preceding.size:
+                start = float(preceding[-1])
+        aligned_starts.append(round(max(first_start, min(last_start, start)), 3))
+    starts = sorted(set(aligned_starts))
+
     text_array = None
     allowed_text_ratio = max(0.0, min(1.0, float(max_text_frame_percent) / 100.0))
     if text_risks is not None:
@@ -99,7 +149,6 @@ def _rank_windows(
         if candidate_text.size == times.size:
             text_array = candidate_text
 
-    event_threshold = float(np.percentile(scores, 75))
     candidates = []
     for start in starts:
         start = float(start)
@@ -112,6 +161,11 @@ def _rank_windows(
         peak_score = float(np.percentile(window, 85))
         event_density = float((window >= event_threshold).mean())
         activity_score = 0.55 * mean_score + 0.30 * peak_score + 0.15 * event_density
+        peak_offset = int(np.argmax(window)) / max(1, window.size - 1)
+        if peak_offset < 0.10:
+            activity_score *= 0.82
+        elif 0.15 <= peak_offset <= 0.85:
+            activity_score *= 1.04
         candidate = {"start": start, "end": end, "score": activity_score}
         if text_array is not None:
             window_text = text_array[mask]
@@ -148,6 +202,26 @@ def _rank_windows(
         if len(selected) >= max(1, int(count or 1)):
             break
     return selected
+
+
+def _detect_scene_boundaries(video_path, np):
+    """Detect precise hard cuts without static compilation sidebars masking them."""
+    command = [
+        "ffmpeg", "-hide_banner", "-nostats", "-i", video_path,
+        "-vf", (
+            "crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=180:320,"
+            "select='gt(scene,0.22)',showinfo"
+        ),
+        "-an", "-f", "null", "-",
+    ]
+    result = subprocess.run(command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        return np.asarray([], dtype=np.float32)
+    stderr = result.stderr.decode("utf-8", errors="replace")
+    values = [float(value) for value in re.findall(r"pts_time:([0-9]+(?:\.[0-9]+)?)", stderr)]
+    if not values:
+        return np.asarray([], dtype=np.float32)
+    return np.asarray(sorted(set(values)), dtype=np.float32)
 
 
 def _build_text_safe_montages(
@@ -278,15 +352,22 @@ def _sample_visual_activity(video_path, video_duration, sample_interval, cv2, np
     frames = frames.reshape(frame_count, height, width)
     for frame_index, gray in enumerate(frames):
         activity_gray = cv2.resize(gray, (160, 90), interpolation=cv2.INTER_AREA) if text_safe else gray
-        hist = cv2.calcHist([activity_gray], [0], None, [32], [0, 256])
+        # Compilation sources often place a vertical phone clip between large,
+        # static sidebars. Analyze the target 9:16 content so those bars cannot
+        # hide a real cut between two source scenes.
+        activity_height, activity_width = activity_gray.shape
+        content_width = min(activity_width, max(1, int(round(activity_height * 9.0 / 16.0))))
+        content_left = max(0, (activity_width - content_width) // 2)
+        content_gray = activity_gray[:, content_left:content_left + content_width]
+        hist = cv2.calcHist([content_gray], [0], None, [32], [0, 256])
         cv2.normalize(hist, hist, alpha=1.0, norm_type=cv2.NORM_L1)
 
-        motion = 0.0 if previous_gray is None else float(cv2.absdiff(activity_gray, previous_gray).mean())
+        motion = 0.0 if previous_gray is None else float(cv2.absdiff(content_gray, previous_gray).mean())
         scene = 0.0 if previous_hist is None else float(
             cv2.compareHist(previous_hist, hist, cv2.HISTCMP_BHATTACHARYYA)
         )
-        focus = math.log1p(float(cv2.Laplacian(activity_gray, cv2.CV_64F).var()))
-        brightness = float(activity_gray.mean())
+        focus = math.log1p(float(cv2.Laplacian(content_gray, cv2.CV_64F).var()))
+        brightness = float(content_gray.mean())
         exposure = max(0.0, 1.0 - abs(brightness - 127.5) / 127.5)
 
         times.append(frame_index * float(sample_interval))
@@ -295,12 +376,13 @@ def _sample_visual_activity(video_path, video_duration, sample_interval, cv2, np
         sharpness.append(focus)
         exposure_quality.append(exposure)
         text_risks.append(_text_frame_risk(gray, cv2, np) if text_safe else 0.0)
-        previous_gray = activity_gray
+        previous_gray = content_gray
         previous_hist = hist
 
+    normalized_scenes = _robust_normalize(scene_changes, np)
     visual = (
         0.45 * _robust_normalize(motions, np)
-        + 0.25 * _robust_normalize(scene_changes, np)
+        + 0.25 * normalized_scenes
         + 0.20 * _robust_normalize(sharpness, np)
         + 0.10 * np.asarray(exposure_quality, dtype=np.float32)
     )
@@ -308,6 +390,7 @@ def _sample_visual_activity(video_path, video_duration, sample_interval, cv2, np
         np.asarray(times, dtype=np.float32),
         visual,
         np.asarray(text_risks, dtype=np.float32),
+        normalized_scenes,
     )
 
 
@@ -338,7 +421,7 @@ def select_visual_segments(
     min_duration,
     max_duration,
     video_duration=None,
-    sample_interval=1.0,
+    sample_interval=0.5,
     text_safe=False,
     max_text_frame_percent=15.0,
 ):
@@ -360,7 +443,7 @@ def select_visual_segments(
 
     clip_len = min(float(max_duration), max(float(min_duration), 45.0), float(video_duration))
     print(f"[VISUAL] Sampling {video_duration:.1f}s video every {sample_interval:.1f}s...")
-    times, visual, text_risks = _sample_visual_activity(
+    times, visual, text_risks, scene_changes = _sample_visual_activity(
         video_path,
         video_duration,
         sample_interval,
@@ -370,6 +453,9 @@ def select_visual_segments(
     )
     audio = _sample_audio_activity(video_path, times, sample_interval, np)
     combined = 0.80 * visual + 0.20 * audio
+    precise_boundaries = _detect_scene_boundaries(video_path, np)
+    if precise_boundaries.size:
+        print(f"[VISUAL] Detected {precise_boundaries.size} precise scene boundaries.")
     windows = _rank_windows(
         times,
         combined,
@@ -379,6 +465,8 @@ def select_visual_segments(
         np,
         text_risks=text_risks if text_safe else None,
         max_text_frame_percent=max_text_frame_percent,
+        scene_changes=scene_changes,
+        scene_boundaries=precise_boundaries,
     )
     if not windows:
         raise RuntimeError("Visual scoring produced no candidate windows")

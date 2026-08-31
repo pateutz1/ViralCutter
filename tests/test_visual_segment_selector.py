@@ -47,6 +47,64 @@ class VisualSegmentSelectorTests(unittest.TestCase):
         overlap = min(result[0]["end"], result[1]["end"]) - max(result[0]["start"], result[1]["start"])
         self.assertLessEqual(overlap, 5.0)
 
+    def test_rank_windows_drops_short_previous_scene_tail(self):
+        times = np.arange(0, 40, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[(times >= 13) & (times < 22)] = 1.0
+        scenes = np.zeros_like(times)
+        scenes[times == 10.5] = 1.0
+
+        result = _rank_windows(
+            times, scores, 15, 40, 1, np, pad=0, stride=5, scene_changes=scenes
+        )
+
+        self.assertEqual(result[0]["start"], 10.5)
+        self.assertAlmostEqual(result[0]["end"] - result[0]["start"], 15.0)
+
+    def test_rank_windows_drops_five_second_previous_scene_tail(self):
+        times = np.arange(0, 50, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[(times >= 20) & (times < 32)] = 1.0
+        scenes = np.zeros_like(times)
+        scenes[times == 20] = 1.0
+
+        result = _rank_windows(
+            times, scores, 15, 50, 1, np, pad=0, stride=5, scene_changes=scenes
+        )
+
+        self.assertEqual(result[0]["start"], 20.0)
+
+    def test_precise_boundaries_override_missed_sampled_scene(self):
+        times = np.arange(0, 50, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[(times >= 22) & (times < 32)] = 1.0
+        sampled_scenes = np.zeros_like(times)
+
+        result = _rank_windows(
+            times,
+            scores,
+            15,
+            50,
+            1,
+            np,
+            pad=0,
+            stride=5,
+            scene_changes=sampled_scenes,
+            scene_boundaries=[20.125],
+        )
+
+        self.assertEqual(result[0]["start"], 20.125)
+
+    def test_rank_windows_keeps_preroll_before_activity_peak(self):
+        times = np.arange(0, 40, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[times == 18] = 1.0
+
+        result = _rank_windows(times, scores, 15, 40, 1, np, pad=0, stride=5)
+
+        self.assertLessEqual(result[0]["start"], 15.0)
+        self.assertGreaterEqual(18.0 - result[0]["start"], 3.0)
+
     @mock.patch("scripts.visual_segment_selector.select_visual_segments")
     def test_low_speech_fallback_uses_visual_selector(self, select_visual_segments):
         expected = {"segments": [{"start_time": 10.0, "duration": 90.0}]}
