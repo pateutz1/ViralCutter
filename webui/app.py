@@ -410,7 +410,7 @@ THEME_CLICK_JS = """
 vc_theme = gr.themes.Default(
     primary_hue="teal",
     neutral_hue="slate",
-    font=gr.themes.GoogleFont("Plus Jakarta Sans"),
+    font=gr.themes.GoogleFont("Manrope"),
 )
 
 with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=head_script, js=theme_init_js) as demo:
@@ -436,11 +436,21 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
         queue=False,
         show_progress="hidden",
     )
-    with gr.Tabs():
+    with gr.Tabs(elem_id="vc-main-tabs"):
         with gr.Tab(i18n("Create New")):
-             with gr.Row(equal_height=True):
-                with gr.Column(scale=1):
-                    with gr.Group(elem_classes=["vc-card"]):
+             gr.HTML("""
+<section class="vc-workspace-heading" id="vc-workspace">
+  <div>
+    <span class="vc-eyebrow">Creation workspace</span>
+    <h1>Build your next short</h1>
+    <p>Set the source, processing intelligence, crop behavior, and captions in one focused workflow.</p>
+  </div>
+  <div class="vc-workspace-meta"><span>01</span><small>Configure</small></div>
+</section>
+""")
+             with gr.Row(equal_height=True, elem_classes=["vc-core-grid"]):
+                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+                    with gr.Group(elem_classes=["vc-card", "vc-card-video"]):
                         gr.Markdown(f"### {i18n('Video')}")
                         input_source = gr.Radio(
                             [(i18n("YouTube URL"), "YouTube URL"), (i18n("Existing Project"), "Existing Project"), (i18n("Upload Video"), "Upload Video")],
@@ -464,8 +474,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             projs = library.get_existing_projects()
                             return gr.update(visible=False), gr.update(choices=projs, visible=True), gr.update(visible=False), gr.update(value="Subtitles Only")
 
-                with gr.Column(scale=1):
-                    with gr.Group(elem_classes=["vc-card"]):
+                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+                    with gr.Group(elem_classes=["vc-card", "vc-card-api"]):
                         gr.Markdown(f"### {i18n('API')}")
                         with gr.Row():
                             ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
@@ -514,9 +524,12 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
 
                     ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input)
 
-             with gr.Row(equal_height=True):
-                with gr.Column(scale=1):
-                    with gr.Group(elem_classes=["vc-card"]):
+             gr.HTML("""
+<div class="vc-section-divider"><span>02</span><div><strong>Processing</strong><small>Choose how clips are detected, framed, and transcribed.</small></div></div>
+""")
+             with gr.Row(equal_height=True, elem_classes=["vc-core-grid"]):
+                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+                    with gr.Group(elem_classes=["vc-card", "vc-card-cutting"]):
                         gr.Markdown(f"### {i18n('Cutting')}")
                         generation_profile_input = gr.Dropdown(
                             choices=[(i18n(name), name) for name in generation_profiles.GENERATION_PROFILES],
@@ -543,8 +556,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             value=ui_state.get("max_text_frame_percent", 15),
                             step=1,
                         )
-                with gr.Column(scale=1):
-                    with gr.Group(elem_classes=["vc-card"]):
+                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+                    with gr.Group(elem_classes=["vc-card", "vc-card-captions"]):
                         gr.Markdown(f"### {i18n('Captions')}")
                         with gr.Row():
                             model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value=ui_state.get("whisper_backend", "cloudflare"))
@@ -554,7 +567,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             )
                         translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"))
 
-             with gr.Group(elem_classes=["vc-card"]):
+             with gr.Group(elem_classes=["vc-card", "vc-card-wide"]):
                 gr.Markdown(f"### {i18n('Face / Vertical')}")
                 with gr.Row():
                     workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value=ui_state.get("workflow", "Full"))
@@ -576,7 +589,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
              input_source.change(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input])
              demo.load(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input], queue=False, show_progress="hidden")
 
-             with gr.Accordion(i18n("Advanced Face Settings"), open=False, elem_classes=["vc-card"]):
+             with gr.Accordion(i18n("Advanced Face Settings"), open=False, elem_classes=["vc-card", "vc-advanced-card"]):
                  face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("face_preset", "Default (Balanced)"), interactive=True)
                  with gr.Row():
                       face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.30), step=0.05, info=i18n("Relative size to ignore background."))
@@ -612,7 +625,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             active_speaker_decay_input = gr.Slider(label=i18n("Switch Speed"), minimum=0.5, maximum=5.0, value=ui_state.get("active_speaker_decay", 2.0), step=0.5, info=i18n("Speed to lose focus."))
 
                         experimental_preset_input.change(apply_experimental_preset, inputs=experimental_preset_input, outputs=[focus_active_speaker_input, active_speaker_mar_input, active_speaker_score_diff_input, include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input])
-             with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False, elem_classes=["vc-card"]):
+             with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False, elem_classes=["vc-card", "vc-advanced-card"]):
                 preset_input = gr.Dropdown(choices=[(i18n("Manual"), "Manual")] + [(i18n(k), k) for k in subs.SUBTITLE_PRESETS.keys()], label=i18n("Quick Presets"), value=ui_state.get("subtitle_preset", "Hormozi (Classic)"))
                 use_custom_subs = gr.Checkbox(label=i18n("Enable Subtitle Customization (Includes Preset)"), value=ui_state.get("use_custom_subs", True))
                 
@@ -759,7 +772,10 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                  show_progress="hidden",
              )
 
-             with gr.Group(elem_classes=["vc-card"]):
+             gr.HTML("""
+<div class="vc-section-divider vc-output-divider"><span>03</span><div><strong>Output</strong><small>Start processing and follow the render in real time.</small></div></div>
+""")
+             with gr.Group(elem_classes=["vc-card", "vc-generate-card"]):
                  gr.Markdown(f"### {i18n('Generate')}")
                  with gr.Row():
                      start_btn = gr.Button(i18n("Start Processing"), variant="primary")
