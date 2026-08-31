@@ -3,6 +3,7 @@ import numpy as np
 import os
 import subprocess
 import mediapipe as mp
+from scripts.content_bounds import normalize_content_bounds
 
 def crop_and_resize_single_face(frame, face):
         frame_height, frame_width = frame.shape[:2]
@@ -34,7 +35,10 @@ def crop_and_resize_single_face(frame, face):
 
         return resized
 
-def resize_with_padding(frame):
+def resize_with_padding(frame, content_bounds=None):
+        if content_bounds:
+            content_left, content_right = normalize_content_bounds(frame.shape[1], content_bounds)
+            frame = frame[:, content_left:content_right]
         frame_height, frame_width = frame.shape[:2]
         target_aspect_ratio = 9 / 16
 
@@ -108,10 +112,13 @@ def detect_face_or_body(frame, face_detection, face_mesh, pose):
     return detections if detections else None
 
 
-def crop_center_zoom(frame):
+def crop_center_zoom(frame, content_bounds=None):
     """
     Crops the center of the frame to fill 9:16 aspect ratio (Zoom effect).
     """
+    if content_bounds:
+        content_left, content_right = normalize_content_bounds(frame.shape[1], content_bounds)
+        frame = frame[:, content_left:content_right]
     frame_height, frame_width = frame.shape[:2]
     target_aspect_ratio = 9 / 16
     

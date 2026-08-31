@@ -74,7 +74,7 @@ class StickyFocusHelperTests(unittest.TestCase):
         )
         self.assertFalse(keep)
 
-    def test_mode_2_still_times_out_to_fallback(self):
+    def test_mode_2_keeps_two_face_layout_until_scene_cut(self):
         last = [[100, 80, 220, 240]]
         keep = edit_video.should_keep_sticky_focus(
             face_mode="2",
@@ -83,7 +83,7 @@ class StickyFocusHelperTests(unittest.TestCase):
             timeout_frames=90,
             scene_cut=False,
         )
-        self.assertFalse(keep)
+        self.assertTrue(keep)
 
     def test_no_face_history_does_not_stick(self):
         keep = edit_video.should_keep_sticky_focus(

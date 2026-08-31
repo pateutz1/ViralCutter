@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from scripts.content_bounds import normalize_content_bounds
 import os
 import sys
 from contextlib import contextmanager
@@ -84,7 +85,7 @@ def detect_faces_insightface(frame):
         results.append(res)
     return results
 
-def crop_and_resize_insightface(frame, face_bbox, target_width=1080, target_height=1920):
+def crop_and_resize_insightface(frame, face_bbox, target_width=1080, target_height=1920, content_bounds=None):
     """
     Crops and resizes the frame to target dimensions centered on the face_bbox.
     face_bbox: [x1, y1, x2, y2]
@@ -110,12 +111,14 @@ def crop_and_resize_insightface(frame, face_bbox, target_width=1080, target_heig
     # Trying to maximize height usage of the source frame usually.
     
     # Let's say we want to use the full height of the source if possible
+    content_left, content_right = normalize_content_bounds(w, content_bounds)
+    content_width = content_right - content_left
     source_h = h
     source_w = int(source_h * (target_width / target_height))
     
-    if source_w > w:
+    if source_w > content_width:
         # If the calculated width is wider than the source image, we are limited by width
-        source_w = w
+        source_w = content_width
         source_h = int(source_w * (target_height / target_width))
 
     # Calculate top-left corner of the crop
@@ -123,10 +126,10 @@ def crop_and_resize_insightface(frame, face_bbox, target_width=1080, target_heig
     crop_y1 = face_center_y - (source_h // 2) # Center vertically on face
     
     # Adjust to stay within bounds
-    if crop_x1 < 0: 
-        crop_x1 = 0
-    elif crop_x1 + source_w > w:
-        crop_x1 = w - source_w
+    if crop_x1 < content_left:
+        crop_x1 = content_left
+    elif crop_x1 + source_w > content_right:
+        crop_x1 = content_right - source_w
         
     if crop_y1 < 0:
         crop_y1 = 0

@@ -1,13 +1,16 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+from scripts.content_bounds import normalize_content_bounds
 
-def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.2):
+def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.2, content_bounds=None):
     """
     Crop a region based on the face while keeping the target aspect ratio.
     Prevents deformation (stretching/squeezing).
     """
     img_h, img_w, _ = frame.shape
+    content_left, content_right = normalize_content_bounds(img_w, content_bounds)
+    content_width = content_right - content_left
     x, y, w, h = face_box
     
     # Face center
@@ -30,8 +33,8 @@ def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.
     
     # Check original image limits (we cannot crop more than exists)
     # If required width is larger than the image, limit by width
-    if crop_w > img_w:
-        crop_w = float(img_w)
+    if crop_w > content_width:
+        crop_w = float(content_width)
         crop_h = crop_w / target_ar
         
     # If required height is larger than the image, limit by height
@@ -49,11 +52,11 @@ def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.
     
     # Edge clamp by sliding the window if possible
     # If it goes past the left, snap to the left
-    if x1 < 0: 
-        x1 = 0
+    if x1 < content_left:
+        x1 = content_left
     # If it goes past the right, snap to the right
-    elif x1 + crop_w > img_w: 
-        x1 = img_w - crop_w
+    elif x1 + crop_w > content_right:
+        x1 = content_right - crop_w
         
     # If it goes past the top
     if y1 < 0: 
@@ -78,7 +81,7 @@ def crop_and_maintain_ar(frame, face_box, target_w, target_h, zoom_out_factor=2.
     resized = cv2.resize(cropped, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
     return resized
 
-def crop_and_resize_two_faces(frame, face_positions, zoom_out_factor=2.2):
+def crop_and_resize_two_faces(frame, face_positions, zoom_out_factor=2.2, content_bounds=None):
     """
     Crop and resize two detected faces in the frame, adjusting for a vertical composition
     1080x1920 where each face occupies half the screen (1080x960).
@@ -92,10 +95,10 @@ def crop_and_resize_two_faces(frame, face_positions, zoom_out_factor=2.2):
         return np.zeros((1920, 1080, 3), dtype=np.uint8)
 
     # First face (Top)
-    face1_img = crop_and_maintain_ar(frame, face_positions[0], target_w, target_h, zoom_out_factor)
+    face1_img = crop_and_maintain_ar(frame, face_positions[0], target_w, target_h, zoom_out_factor, content_bounds)
     
     # Second face (Bottom)
-    face2_img = crop_and_maintain_ar(frame, face_positions[1], target_w, target_h, zoom_out_factor)
+    face2_img = crop_and_maintain_ar(frame, face_positions[1], target_w, target_h, zoom_out_factor, content_bounds)
     
     # Compose final image (Vertical Stack)
     result_frame = np.vstack((face1_img, face2_img))

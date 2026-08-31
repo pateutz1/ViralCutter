@@ -18,6 +18,7 @@ import library # Module for Library Logic
 import subtitle_handler as subs # Module for Subtitles
 import subtitle_editor as editor # Module for Editor Logic
 import ui_settings as ui_cfg
+import generation_profiles
 
 # Path to the main script
 MAIN_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main_improved.py")
@@ -28,12 +29,7 @@ from i18n.i18n import I18nAuto
 i18n = I18nAuto()
 
 # --- PRESETS DEFINITIONS ---
-FACE_PRESETS = {
-    "Default (Balanced)": {"thresh": 0.35, "two_face": 0.60, "conf": 0.40, "dead_zone": 150},
-    "Stable (Focus Main)": {"thresh": 0.60, "two_face": 0.80, "conf": 0.60, "dead_zone": 200},
-    "Sensitive (Catch All)": {"thresh": 0.10, "two_face": 0.40, "conf": 0.30, "dead_zone": 100},
-    "High Precision": {"thresh": 0.40, "two_face": 0.65, "conf": 0.75, "dead_zone": 150},
-}
+FACE_PRESETS = generation_profiles.FACE_PRESETS
 
 EXPERIMENTAL_PRESETS = {
     "Default (Off)": {"focus": False, "mar": 0.03, "score": 1.5, "motion": False, "motion_th": 3.0, "motion_sens": 0.05, "decay": 2.0},
@@ -140,6 +136,18 @@ def apply_face_preset(preset_name):
     p = FACE_PRESETS[preset_name]
     return p["thresh"], p["two_face"], p["conf"], p["dead_zone"]
 
+
+def apply_generation_profile(profile_name):
+    profile = generation_profiles.resolve_generation_profile(profile_name)
+    if not profile:
+        return [gr.update() for _ in range(11)]
+    return (
+        profile["segments"], profile["min_duration"], profile["max_duration"],
+        profile["face_mode"], profile["face_detect_interval"], profile["no_face_mode"],
+        profile["face_preset"], profile["thresh"], profile["two_face"],
+        profile["conf"], profile["dead_zone"],
+    )
+
 def apply_experimental_preset(preset_name):
     if preset_name not in EXPERIMENTAL_PRESETS:
         return [gr.update() for _ in range(7)] # No change
@@ -150,7 +158,7 @@ def apply_experimental_preset(preset_name):
 # Subtitle logic moved to subtitle_handler.py
 
 
-def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, text_safe_selection, max_text_frame_percent, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode,
+def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, text_safe_selection, max_text_frame_percent, generation_profile, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode,
                      face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone, focus_active_speaker, active_speaker_mar, active_speaker_score_diff, include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
                      enable_captions, use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
                      h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target,
@@ -161,7 +169,7 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
     ui_cfg.persist_create_tab_settings(
         api_key,
         input_source, video_quality, translate_target, use_youtube_subs, segments, viral, themes,
-        min_duration, max_duration, text_safe_selection, max_text_frame_percent,
+        min_duration, max_duration, text_safe_selection, max_text_frame_percent, generation_profile,
         ai_backend, ai_model_name, chunk_size, model, enable_captions, workflow,
         face_model, face_mode, face_detect_interval, no_face_mode,
         face_preset, face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone,
@@ -510,6 +518,12 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                 with gr.Column(scale=1):
                     with gr.Group(elem_classes=["vc-card"]):
                         gr.Markdown(f"### {i18n('Cutting')}")
+                        generation_profile_input = gr.Dropdown(
+                            choices=[(i18n(name), name) for name in generation_profiles.GENERATION_PROFILES],
+                            label=i18n("Generation Profile"),
+                            value=ui_state.get("generation_profile", "Custom"),
+                            info=i18n("Sets clip count, duration, face mode, tracking speed, and face preset together."),
+                        )
                         with gr.Row():
                             segments_input = gr.Number(label=i18n("Segments"), value=ui_state.get("segments", 3), precision=0)
                             viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=ui_state.get("viral", True))
@@ -556,7 +570,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                         value=ui_state.get("face_mode", "auto"),
                     )
                 with gr.Row():
-                    face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=ui_state.get("face_detect_interval", "0.17,1.0"))
+                    face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=ui_state.get("face_detect_interval", "0.17,0.35"))
                     no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value=ui_state.get("no_face_mode", "zoom"))
 
              input_source.change(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input])
@@ -565,12 +579,22 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
              with gr.Accordion(i18n("Advanced Face Settings"), open=False, elem_classes=["vc-card"]):
                  face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("face_preset", "Default (Balanced)"), interactive=True)
                  with gr.Row():
-                      face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.35), step=0.05, info=i18n("Relative size to ignore background."))
+                      face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.30), step=0.05, info=i18n("Relative size to ignore background."))
                       face_two_thresh_input = gr.Slider(label=i18n("Threshold for 2 Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_two_thresh", 0.60), step=0.05, info=i18n("Size of 2nd face to activate split mode."))
-                      face_conf_thresh_input = gr.Slider(label=i18n("Minimum Confidence (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_conf_thresh", 0.40), step=0.05, info=i18n("Ignore detections with low confidence."))
-                      face_dead_zone_input = gr.Slider(label=i18n("Dead Zone (Stabilization)"), minimum=0, maximum=200, value=ui_state.get("face_dead_zone", 150), step=5, info=i18n("Movement pixels to ignore."))
+                      face_conf_thresh_input = gr.Slider(label=i18n("Minimum Confidence (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_conf_thresh", 0.50), step=0.05, info=i18n("Ignore detections with low confidence."))
+                      face_dead_zone_input = gr.Slider(label=i18n("Dead Zone (Stabilization)"), minimum=0, maximum=120, value=ui_state.get("face_dead_zone", 45), step=5, info=i18n("Movement pixels to ignore."))
                  
                  face_preset_input.change(apply_face_preset, inputs=face_preset_input, outputs=[face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input])
+                 generation_profile_input.change(
+                     apply_generation_profile,
+                     inputs=generation_profile_input,
+                     outputs=[
+                         segments_input, min_dur_input, max_dur_input,
+                         face_mode_input, face_detect_interval_input, no_face_mode_input,
+                         face_preset_input, face_filter_thresh_input, face_two_thresh_input,
+                         face_conf_thresh_input, face_dead_zone_input,
+                     ],
+                 )
 
                  with gr.Accordion(i18n("Experimental: Active Speaker & Motion"), open=False):
                         experimental_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in EXPERIMENTAL_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("experimental_preset", "Default (Off)"), interactive=True)
@@ -706,6 +730,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                  input_source, video_quality_input, translate_input, use_youtube_subs_input,
                  segments_input, viral_input, themes_input, min_dur_input, max_dur_input,
                  text_safe_selection_input, max_text_frame_percent_input,
+                 generation_profile_input,
                  ai_backend_input, ai_model_input, chunk_size_input,
                  model_input, enable_captions_input, workflow_input,
                  face_model_input, face_mode_input, face_detect_interval_input, no_face_mode_input,
@@ -773,7 +798,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
 
              # MUST pass all all new inputs to the run function
              start_btn.click(run_viral_cutter, inputs=[
-                 input_source, project_selector, url_input, video_upload, segments_input, viral_input, themes_input, min_dur_input, max_dur_input, text_safe_selection_input, max_text_frame_percent_input,
+                 input_source, project_selector, url_input, video_upload, segments_input, viral_input, themes_input, min_dur_input, max_dur_input, text_safe_selection_input, max_text_frame_percent_input, generation_profile_input,
                  model_input, ai_backend_input, api_key_input, ai_model_input, chunk_size_input, 
                  workflow_input, face_model_input, face_mode_input, face_detect_interval_input, no_face_mode_input, 
                  face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input, focus_active_speaker_input, 

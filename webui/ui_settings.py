@@ -1,16 +1,19 @@
 import json
 import os
+import generation_profiles
 
 WORKING_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_SETTINGS_PATH = os.path.join(WORKING_DIR, "ui_settings.json")
 API_CONFIG_PATH = os.path.join(WORKING_DIR, "api_config.json")
 
 DEFAULT_UI_SETTINGS = {
+    "settings_schema_version": generation_profiles.SETTINGS_SCHEMA_VERSION,
     "input_source": "YouTube URL",
     "video_quality": "best",
     "translate_target": "None",
     "use_youtube_subs": True,
     "segments": 3,
+    "generation_profile": "Custom",
     "viral": True,
     "themes": "",
     "min_duration": 15,
@@ -25,13 +28,13 @@ DEFAULT_UI_SETTINGS = {
     "workflow": "Full",
     "face_model": "insightface",
     "face_mode": "auto",
-    "face_detect_interval": "0.17,1.0",
+    "face_detect_interval": "0.17,0.35",
     "no_face_mode": "zoom",
     "face_preset": "Default (Balanced)",
-    "face_filter_thresh": 0.35,
+    "face_filter_thresh": 0.30,
     "face_two_thresh": 0.60,
-    "face_conf_thresh": 0.40,
-    "face_dead_zone": 150,
+    "face_conf_thresh": 0.50,
+    "face_dead_zone": 45,
     "experimental_preset": "Default (Off)",
     "focus_active_speaker": False,
     "active_speaker_mar": 0.03,
@@ -87,7 +90,7 @@ def load_ui_state():
             with open(UI_SETTINGS_PATH, "r", encoding="utf-8") as handle:
                 loaded = json.load(handle)
             if isinstance(loaded, dict):
-                state.update(loaded)
+                state.update(generation_profiles.migrate_saved_settings(loaded))
         except Exception:
             pass
     return state
@@ -141,6 +144,7 @@ def settings_from_create_tab(
     max_duration,
     text_safe_selection,
     max_text_frame_percent,
+    generation_profile,
     ai_backend,
     ai_model_name,
     chunk_size,
@@ -200,6 +204,7 @@ def settings_from_create_tab(
         "max_duration": max_duration,
         "text_safe_selection": text_safe_selection,
         "max_text_frame_percent": max_text_frame_percent,
+        "generation_profile": generation_profile,
         "ai_backend": ai_backend,
         "ai_model_name": ai_model_name,
         "chunk_size": chunk_size,

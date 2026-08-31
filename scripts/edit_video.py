@@ -5,6 +5,7 @@ import subprocess
 import mediapipe as mp
 from scripts.one_face import crop_and_resize_single_face, resize_with_padding, detect_face_or_body, crop_center_zoom
 from scripts.two_face import crop_and_resize_two_faces, detect_face_or_body_two_faces
+from scripts.content_bounds import detect_embedded_content_bounds, bounds_are_close
 try:
     from scripts.face_detection_insightface import init_insightface, detect_faces_insightface, crop_and_resize_insightface
     INSIGHTFACE_AVAILABLE = True
@@ -106,7 +107,7 @@ def sort_by_proximity(new_faces, old_faces, center_func):
     
     return new_faces
 
-# Sticky-focus / scene-cut internals (InsightFace auto and 1-face). No UI knobs.
+# Sticky-focus / scene-cut internals for all InsightFace tracking modes. No UI knobs.
 SCENE_SIGNATURE_SIZE = (64, 36)
 SCENE_CUT_CANDIDATE_THRESHOLD = 0.45
 SCENE_CUT_SAME_THRESHOLD = 0.22
@@ -117,7 +118,7 @@ MIN_FACE_REL_HEIGHT = 0.05
 
 
 def uses_sticky_focus(face_mode):
-    return face_mode in ("auto", "1")
+    return face_mode in ("auto", "1", "2")
 
 
 def build_scene_signature(frame, size=SCENE_SIGNATURE_SIZE):
@@ -231,7 +232,7 @@ def prepare_insightface_faces(faces, confidence_threshold, filter_threshold, fra
 
 
 def should_keep_sticky_focus(face_mode, last_faces, frames_since_success, timeout_frames, scene_cut):
-    """Keep last crop after the normal timeout in auto/1-face, until a real cut."""
+    """Keep the last tracked crop until a confirmed scene cut."""
     if last_faces is None or scene_cut:
         return False
     if frames_since_success <= timeout_frames:
@@ -700,7 +701,8 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
     # Map of "Face ID" to activity score?
     # Since we don't have ID tracker, we blindly assign score to faces based on proximity to previous frame
     # A list of dictionaries: [{'center': (x,y), 'activity': score}, ...]
-    faces_activity_state = [] 
+    faces_activity_state = []
+    content_bounds = None
     
     for frame_index in range(total_frames):
         if buffered_frame is not None:
@@ -713,10 +715,16 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
         if not ret or frame is None:
             break
 
+        detected_content_bounds = detect_embedded_content_bounds(frame)
+        if content_bounds is None:
+            content_bounds = detected_content_bounds or (0, frame_width)
+
         if uses_sticky_focus(face_mode):
             scene_cut = scene_tracker.update(build_scene_signature(frame))
-            if scene_cut and last_detected_faces is not None:
-                print("DEBUG: Scene cut detected; clearing sticky focus")
+            if scene_cut:
+                content_bounds = detected_content_bounds or (0, frame_width)
+                if last_detected_faces is not None:
+                    print("DEBUG: Scene cut detected; clearing sticky focus")
                 last_detected_faces = None
                 last_frame_face_positions = None
                 transition_frames = []
@@ -726,6 +734,10 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
                 faces_activity_state = []
                 current_num_faces_state = 1
                 sticky_logged = False
+            elif detected_content_bounds and (
+                last_detected_faces is None or bounds_are_close(content_bounds, detected_content_bounds)
+            ):
+                content_bounds = detected_content_bounds
 
         if frame_index >= next_detection_frame and len(transition_frames) == 0:
             # Detect faces
@@ -1140,14 +1152,19 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
         else:
             # Fallback for this frame
             if no_face_mode == "zoom":
-                result = crop_center_zoom(frame)
+                result = crop_center_zoom(frame, content_bounds=content_bounds)
             else:
-                result = resize_with_padding(frame)
+                result = resize_with_padding(frame, content_bounds=content_bounds)
             out.write(result)
             timeline_frames.append((frame_index, "1")) # Fix: Ensure fallback is treated as single face for subs
             
             # Fix XML Log sync (Empty faces for fallback)
-            coords_entry = {"frame": frame_index, "src_size": [frame_width, frame_height], "faces": []}
+            coords_entry = {
+                "frame": frame_index,
+                "src_size": [frame_width, frame_height],
+                "content_bounds": list(content_bounds),
+                "faces": [],
+            }
             coordinate_log.append(coords_entry)
             
             continue
@@ -1163,17 +1180,22 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
              f2 = current_faces[1]
              rect1 = (f1[0], f1[1], f1[2]-f1[0], f1[3]-f1[1])
              rect2 = (f2[0], f2[1], f2[2]-f2[0], f2[3]-f2[1])
-             result = crop_and_resize_two_faces(frame, [rect1, rect2])
+             result = crop_and_resize_two_faces(frame, [rect1, rect2], content_bounds=content_bounds)
              timeline_frames.append((frame_index, "2"))
         else:
              frame_1_face_count += 1
              # 1 face
              # current_faces[0] is [x1, y1, x2, y2]
-             result = crop_and_resize_insightface(frame, current_faces[0])
+             result = crop_and_resize_insightface(frame, current_faces[0], content_bounds=content_bounds)
              timeline_frames.append((frame_index, "1"))
              
         # Capture Coordinates (Frame-by-Frame)
-        coords_entry = {"frame": frame_index, "src_size": [frame_width, frame_height], "faces": []}
+        coords_entry = {
+            "frame": frame_index,
+            "src_size": [frame_width, frame_height],
+            "content_bounds": list(content_bounds),
+            "faces": [],
+        }
         try:
             # We want to store [x1, y1, x2, y2, rh] for each face
             if isinstance(current_faces, (list, tuple)):
