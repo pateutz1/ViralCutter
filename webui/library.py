@@ -36,6 +36,70 @@ def refresh_projects():
     projs = get_existing_projects()
     return gr.update(choices=projs, value=None)
 
+def _safe_segment_base_name(index, segment):
+    title = segment.get("title", f"Segment {index + 1}")
+    safe_title = "".join(
+        character for character in str(title) if character.isalnum() or character in " _-"
+    ).strip()
+    safe_title = safe_title.replace(" ", "_")[:60]
+    return f"{index:03d}_{safe_title}" if safe_title else f"{index:03d}_Segment_{index + 1}"
+
+
+def _find_segment_video(project_folder_path, index, segment):
+    idx_str = f"{index:03d}"
+    base_name = _safe_segment_base_name(index, segment)
+    burned_sub_dir = os.path.join(project_folder_path, "burned_sub")
+    final_dir = os.path.join(project_folder_path, "final")
+    cuts_dir = os.path.join(project_folder_path, "cuts")
+    candidates = []
+
+    raw_path = segment.get("filepath")
+    if isinstance(raw_path, str) and raw_path.strip():
+        candidates.append(raw_path if os.path.isabs(raw_path) else os.path.join(project_folder_path, raw_path))
+
+    filename = segment.get("filename")
+    if isinstance(filename, str) and filename.strip():
+        candidates.extend([
+            os.path.join(burned_sub_dir, filename),
+            os.path.join(final_dir, filename),
+            os.path.join(cuts_dir, filename),
+            os.path.join(project_folder_path, filename),
+        ])
+
+    candidates.extend([
+        os.path.join(burned_sub_dir, f"{base_name}_processed_subtitled.mp4"),
+        os.path.join(burned_sub_dir, f"{base_name}_subtitled.mp4"),
+        os.path.join(final_dir, f"{base_name}.mp4"),
+        os.path.join(cuts_dir, f"{base_name}_original_scale.mp4"),
+        os.path.join(burned_sub_dir, f"final-output{idx_str}_processed_subtitled.mp4"),
+        os.path.join(burned_sub_dir, f"output{idx_str}.mp4"),
+        os.path.join(final_dir, f"final-output{idx_str}_processed.mp4"),
+        os.path.join(project_folder_path, f"final-output{idx_str}_processed.mp4"),
+        os.path.join(project_folder_path, f"output{idx_str}_original_scale.mp4"),
+        os.path.join(project_folder_path, f"output{idx_str}.mp4"),
+        os.path.join(cuts_dir, f"output{idx_str}_original_scale.mp4"),
+        os.path.join(cuts_dir, f"segment_{idx_str}.mp4"),
+        os.path.join(cuts_dir, f"{idx_str}.mp4"),
+    ])
+
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+
+    for directory in [burned_sub_dir, final_dir, cuts_dir, project_folder_path]:
+        if not os.path.isdir(directory):
+            continue
+        for filename in sorted(os.listdir(directory)):
+            filename_lower = filename.lower()
+            if (
+                filename_lower.endswith(".mp4")
+                and "input" not in filename_lower
+                and (filename.startswith(idx_str) or idx_str in filename)
+            ):
+                return os.path.join(directory, filename)
+
+    return None
+
 def generate_project_gallery(project_path_name, is_full_path=False):
     """
     Generates HTML gallery for a given project folder using FastAPI Static Files mounting.
@@ -65,7 +129,7 @@ def generate_project_gallery(project_path_name, is_full_path=False):
         # Fallback if list is empty
         if not segments_list:
              found_files = []
-             for subdir in ["burned_sub", "cuts", "."]:
+             for subdir in ["burned_sub", "final", "cuts", "."]:
                  d = os.path.join(project_folder_path, subdir)
                  if os.path.exists(d):
                      for f in os.listdir(d):
@@ -81,41 +145,7 @@ def generate_project_gallery(project_path_name, is_full_path=False):
             score = seg.get("score", "N/A")
             description = seg.get("description", i18n("No description available."))
             
-            video_path = seg.get("filepath", None)
-            
-            # Smart search
-            if not video_path:
-                idx_str = f"{i:03d}"
-                potential_paths = [
-                    os.path.join(project_folder_path, "burned_sub", f"final-output{idx_str}_processed_subtitled.mp4"),
-                    os.path.join(project_folder_path, "burned_sub", f"output{idx_str}.mp4"),
-                    os.path.join(project_folder_path, f"final-output{idx_str}_processed.mp4"),
-                    os.path.join(project_folder_path, f"output{idx_str}_original_scale.mp4"),
-                    os.path.join(project_folder_path, f"output{idx_str}.mp4"),
-                    os.path.join(project_folder_path, "cuts", f"output{idx_str}_original_scale.mp4"),
-                    os.path.join(project_folder_path, "cuts", f"segment_{idx_str}.mp4"),
-                    os.path.join(project_folder_path, "cuts", f"{idx_str}.mp4")
-                ]
-                if isinstance(seg.get("filename"), str):
-                    potential_paths.insert(0, os.path.join(project_folder_path, seg["filename"]))
-                    potential_paths.insert(0, os.path.join(project_folder_path, "burned_sub", seg["filename"]))
-
-                for p in potential_paths:
-                    if os.path.exists(p):
-                        video_path = p
-                        break
-            
-            # Loose search
-            if not video_path:
-                 sub_dirs = [os.path.join(project_folder_path, "burned_sub"), os.path.join(project_folder_path, "cuts")]
-                 for sd in sub_dirs:
-                     if os.path.exists(sd):
-                         for f in sorted(os.listdir(sd)):
-                             idx_str = f"{i:03d}"
-                             if f.endswith(".mp4") and idx_str in f:
-                                 video_path = os.path.join(sd, f)
-                                 break
-                     if video_path: break
+            video_path = _find_segment_video(project_folder_path, i, seg)
 
             video_tag = ""
             download_link = ""

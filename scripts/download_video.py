@@ -67,6 +67,55 @@ def _base_ydl_opts(**extra):
     return opts
 
 
+SUBTITLE_LANGS = ["pt.*", "en.*", "es.*"]
+
+
+def _format_vtt_lines(lines):
+    """Convert YouTube VTT lines to SRT blocks, ignoring text outside timed cues."""
+    srt_content = []
+    counter = 1
+    last_text = ""
+    current_start = None
+    current_end = None
+
+    def fix_time(value):
+        value = value.replace(".", ",")
+        return "00:" + value if value.count(":") == 1 else value
+
+    for line in lines:
+        clean_line = line.strip()
+        if not clean_line:
+            current_start = None
+            current_end = None
+            continue
+        if clean_line.startswith(("WEBVTT", "X-TIMESTAMP", "NOTE", "Kind:", "Language:")):
+            current_start = None
+            current_end = None
+            continue
+        if "-->" in clean_line:
+            parts = clean_line.split("-->", 1)
+            start = parts[0].strip()
+            end = parts[1].strip().split(" ")[0]
+            current_start = fix_time(start)
+            current_end = fix_time(end)
+            continue
+        if current_start is None or current_end is None:
+            continue
+
+        text = re.sub(r"<[^>]+>", "", clean_line).strip()
+        final_line = text.split("\n")[-1].strip()
+        if not final_line or final_line == last_text:
+            continue
+        srt_content.extend([
+            f"{counter}\n",
+            f"{current_start} --> {current_end}\n",
+            f"{final_line}\n\n",
+        ])
+        last_text = final_line
+        counter += 1
+
+    return srt_content
+
 def download(url, base_root="VIRALS", download_subs=True, quality="best"):
     # 1. Extract video info to get the title
     print(i18n("Extracting video information..."))
@@ -168,7 +217,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         progress_hooks=[progress_hook],
         writesubtitles=download_subs,
         writeautomaticsub=download_subs,
-        subtitleslangs=["pt.*", "en.*", "sp.*"],
+        subtitleslangs=SUBTITLE_LANGS,
         skip_download=False,
         quiet=False,
         no_warnings=True,
@@ -246,71 +295,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
                     with open(best_sub, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
                     
-                    srt_content = []
-                    counter = 1
-                    
-                    seen_texts = set()
-                    last_text = ""
-                    
-                    for line in lines:
-                        clean_line = line.strip()
-                        # Ignore VTT/YouTube headers and metadata
-                        if clean_line.startswith("WEBVTT") or \
-                           clean_line.startswith("X-TIMESTAMP") or \
-                           clean_line.startswith("NOTE") or \
-                           clean_line.startswith("Kind:") or \
-                           clean_line.startswith("Language:"):
-                            continue
-                        
-                        if "-->" in clean_line:
-                            # Parse Timestamp
-                            parts = clean_line.split("-->")
-                            start = parts[0].strip()
-                            # Remove positioning tags "align:start position:0%"
-                            end = parts[1].strip().split(' ')[0] 
-                            
-                            def fix_time(t):
-                                t = t.replace('.', ',')
-                                if t.count(':') == 1: 
-                                    t = "00:" + t
-                                return t
-                            
-                            current_start = fix_time(start)
-                            current_end = fix_time(end)
-                            
-                        elif clean_line:
-                             # Text: remove complex tags <00:00:00.560><c> etc
-                             # YouTube uses karaoke format. E.g.: "How much<...> does it cost<...>"
-                             # We need clean text.
-                             text = re.sub(r'<[^>]+>', '', clean_line).strip()
-                             
-                             if not text: continue
-                             
-                             # Logic to remove "Roll-up" or "Karaoke" style duplicates
-                             # YouTube sometimes repeats the previous line.
-                             # E.g.:
-                             # 1: "How much does it cost"
-                             # 2: "How much does it cost\nHow many kilos"
-                             
-                             # Take only the LAST line if there are breaks
-                             lines_in_text = text.split('\n')
-                             final_line = lines_in_text[-1].strip()
-                             
-                             if not final_line: continue
-
-                             # Consecutive duplicate filter
-                             if final_line == last_text:
-                                 continue
-                             
-                             # Avoid ultra-short blocks (10ms glitch) that repeat text
-                             # But here we are processing text.
-                             
-                             srt_content.append(f"{counter}\n")
-                             srt_content.append(f"{current_start} --> {current_end}\n")
-                             srt_content.append(f"{final_line}\n\n")
-                             
-                             last_text = final_line
-                             counter += 1
+                    srt_content = _format_vtt_lines(lines)
                     
                     with open(new_name, 'w', encoding='utf-8') as f_out:
                         f_out.writelines(srt_content)

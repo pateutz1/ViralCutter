@@ -76,20 +76,49 @@ def save_editor_changes(json_path, new_data):
         # new_data is list of [Start, End, Text] from Dataframe
         
         updated_segments = []
+        used_original_indices = set()
         
         for i, row in enumerate(new_data):
             start_str, end_str, new_text = row
             start_sec = parse_timestamp(start_str)
             end_sec = parse_timestamp(end_str)
             
-            # Get original segment to recycle word timings if possible
-            if i < len(original_segments):
-                orig_seg = original_segments[i]
-                orig_words = orig_seg.get('words', [])
+            # Match by timing/text instead of row position so deleted or reordered
+            # editor rows cannot inherit word timings from a different segment.
+            best_original_index = None
+            best_match_score = 0
+            normalized_new_text = str(new_text).strip()
+
+            for original_index, candidate in enumerate(original_segments):
+                if original_index in used_original_indices:
+                    continue
+
+                match_score = 0
+                try:
+                    if abs(float(candidate.get("start", -1000)) - start_sec) < 0.5:
+                        match_score += 10
+                    if abs(float(candidate.get("end", -1000)) - end_sec) < 0.5:
+                        match_score += 5
+                except (TypeError, ValueError):
+                    pass
+
+                if str(candidate.get("text", "")).strip() == normalized_new_text:
+                    match_score += 10
+
+                if match_score > best_match_score:
+                    best_match_score = match_score
+                    best_original_index = original_index
+
+            if best_original_index is None and i < len(original_segments) and i not in used_original_indices:
+                best_original_index = i
+
+            if best_original_index is not None:
+                used_original_indices.add(best_original_index)
+                orig_seg = original_segments[best_original_index]
+                orig_words = orig_seg.get("words", [])
             else:
                 orig_seg = {}
                 orig_words = []
-            
             # 1. Update Segment Level
             new_segment = {
                 "start": start_sec,

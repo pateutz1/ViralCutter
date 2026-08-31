@@ -85,6 +85,30 @@ def _build_montage_command(input_file, output_path, source_ranges, codec, has_au
     command.extend(["-t", f"{total_duration:.6f}", "-movflags", "+faststart", output_path])
     return command
 
+def _parse_seconds(value, treat_large_numbers_as_ms=False):
+    """Parse seconds or HH:MM:SS without corrupting legitimate long-video timestamps."""
+    if isinstance(value, bool):
+        raise ValueError(f"Invalid time value: {value!r}")
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+    else:
+        text_value = str(value).strip()
+        try:
+            seconds = float(text_value)
+        except ValueError:
+            parts = text_value.split(":")
+            if len(parts) == 3:
+                seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+            elif len(parts) == 2:
+                seconds = int(parts[0]) * 60 + float(parts[1])
+            else:
+                raise ValueError(f"Invalid time format: {value!r}")
+    if treat_large_numbers_as_ms and seconds >= 100000:
+        seconds /= 1000.0
+    if seconds < 0:
+        raise ValueError(f"Time cannot be negative: {value!r}")
+    return seconds
+
 def cut(segments, project_folder="tmp", skip_video=False):
 
     def check_nvenc_support():
@@ -125,50 +149,17 @@ def cut(segments, project_folder="tmp", skip_video=False):
             duration = segment.get("duration", 0)
             source_ranges = _validated_source_ranges(segment)
 
-            # Heuristic for duration:
-            if isinstance(duration, (int, float)):
-                if duration < 1000:
-                    duration_seconds = float(duration)
-                else:
-                    duration_seconds = duration / 1000.0
-                duration_str = f"{duration_seconds:.3f}"
-            else:
-                # Try converting string (HH:MM:SS or float str)
-                try:
-                    duration_seconds = float(duration)
-                    duration_str = f"{duration_seconds:.3f}"
-                except ValueError:
-                    # Assume hh:mm:ss format if not float
-                     # Implement parser if needed, but assume float for now based on history
-                    duration_seconds = 0
-                    duration_str = duration
-            
-            # Heuristic for start_time:
-            if isinstance(start_time, (int, float)):
-                if start_time > 10000: # Large milliseconds? Assuming seconds or HHMMSS?
-                   # Original code: if start_time int -> start_time/1000.0.
-                   # Keep the original logic: int -> milliseconds
-                   pass
-            
-            # Redoing the exact original logic for safety and capturing the float:
-            if isinstance(start_time, int):
-                start_time_seconds = start_time / 1000.0
-                start_time_str = f"{start_time_seconds:.3f}"
-            elif isinstance(start_time, float):
-                 start_time_seconds = start_time
-                 start_time_str = f"{start_time_seconds:.3f}"
-            else:
-                # String "00:00:00" or "12.34"
-                try:
-                    start_time_seconds = float(start_time)
-                    start_time_str = f"{start_time_seconds:.3f}"
-                except:
-                    # If HH:MM:SS, ffmpeg accepts it, but we need float for the json cutter
-                    # Simple helper
-                    h, m, s = str(start_time).split(':')
-                    start_time_seconds = int(h) * 3600 + int(m) * 60 + float(s)
-                    start_time_str = str(start_time)
-
+            try:
+                duration_seconds = _parse_seconds(duration, treat_large_numbers_as_ms=True)
+                start_time_seconds = _parse_seconds(start_time, treat_large_numbers_as_ms=True)
+            except (TypeError, ValueError) as error:
+                print(f"Warning: invalid timing for segment {i}: {error}. Skipping.")
+                continue
+            if duration_seconds <= 0:
+                print(f"Warning: duration <= 0 for segment {i}. Skipping.")
+                continue
+            duration_str = f"{duration_seconds:.3f}"
+            start_time_str = f"{start_time_seconds:.3f}"
             # Title for filename
             title = segment.get("title", f"Segment_{i}")
             safe_title = "".join([c for c in title if c.isalnum() or c in " _-"]).strip()

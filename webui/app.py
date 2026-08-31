@@ -17,6 +17,7 @@ import re
 import library # Module for Library Logic
 import subtitle_handler as subs # Module for Subtitles
 import subtitle_editor as editor # Module for Editor Logic
+import ui_settings as ui_cfg
 
 # Path to the main script
 MAIN_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "main_improved.py")
@@ -56,64 +57,30 @@ current_process = None
 
 # Helpers
 def convert_color_to_ass(hex_color, alpha="00"):
-    try:
-        with open("debug_colors.log", "a") as f:
-             f.write(f"INPUT: '{hex_color}'\n")
-    except: pass
-
     if not hex_color:
         return f"&H{alpha}FFFFFF&"
-    
-    hex_clean = hex_color.lstrip('#').strip()
-    
-    # Handle rgb/rgba format: rgb(255, 215, 0)
+
+    hex_clean = hex_color.lstrip("#").strip()
+
     if hex_clean.lower().startswith("rgb"):
         try:
-            # Extract numbers including floats
-            nums = re.findall(r"[\d\.]+", hex_clean)
-            if len(nums) >= 3:
-                r = int(float(nums[0]))
-                g = int(float(nums[1]))
-                b = int(float(nums[2]))
-                # Clamp
-                r = max(0, min(255, r))
-                g = max(0, min(255, g))
-                b = max(0, min(255, b))
-                # Convert to hex
-                ret = f"&H{alpha}{b:02X}{g:02X}{r:02X}&".upper()
-                try:
-                    with open("debug_colors.log", "a") as f:
-                         f.write(f"PARSED RGB: {ret}\n")
-                except: pass
-                return ret
-        except Exception as e:
-            try:
-                with open("debug_colors.log", "a") as f:
-                     f.write(f"RGB ERROR: {e}\n")
-            except: pass
+            values = re.findall(r"[\d.]+", hex_clean)
+            if len(values) >= 3:
+                red, green, blue = (
+                    max(0, min(255, int(float(value)))) for value in values[:3]
+                )
+                return f"&H{alpha}{blue:02X}{green:02X}{red:02X}&".upper()
+        except (TypeError, ValueError):
+            return f"&H{alpha}FFFFFF&"
 
-    # Handle 3-digit hex (e.g. F00 -> FF0000)
     if len(hex_clean) == 3:
-        hex_clean = "".join([c*2 for c in hex_clean])
-        
-    if len(hex_clean) == 6:
-        r = hex_clean[0:2]
-        g = hex_clean[2:4]
-        b = hex_clean[4:6]
-        # Uppercase just in case
-        ret = f"&H{alpha}{b}{g}{r}&".upper() 
-        try:
-            with open("debug_colors.log", "a") as f:
-                 f.write(f"PARSED HEX: {ret}\n")
-        except: pass
-        return ret
-        
-    try:
-        with open("debug_colors.log", "a") as f:
-             f.write(f"INVALID: Defaulting to White\n")
-    except: pass
-    return f"&H{alpha}FFFFFF&"
+        hex_clean = "".join(character * 2 for character in hex_clean)
 
+    if len(hex_clean) == 6 and re.fullmatch(r"[0-9a-fA-F]{6}", hex_clean):
+        red, green, blue = hex_clean[0:2], hex_clean[2:4], hex_clean[4:6]
+        return f"&H{alpha}{blue}{green}{red}&".upper()
+
+    return f"&H{alpha}FFFFFF&"
 def kill_process():
     global current_process
     if current_process:
@@ -186,9 +153,25 @@ def apply_experimental_preset(preset_name):
 def run_viral_cutter(input_source, project_name, url, video_file, segments, viral, themes, min_duration, max_duration, text_safe_selection, max_text_frame_percent, model, ai_backend, api_key, ai_model_name, chunk_size, workflow, face_model, face_mode, face_detect_interval, no_face_mode,
                      face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone, focus_active_speaker, active_speaker_mar, active_speaker_score_diff, include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
                      enable_captions, use_custom_subs, font_name, font_size, font_color, highlight_color, outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase, vertical_pos, alignment,
-                     h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target):
+                     h_size, w_block, gap, mode, under, strike, border_s, remove_punc, video_quality, use_youtube_subs, translate_target,
+                     face_preset, experimental_preset, subtitle_preset):
     
     global current_process
+
+    ui_cfg.persist_create_tab_settings(
+        api_key,
+        input_source, video_quality, translate_target, use_youtube_subs, segments, viral, themes,
+        min_duration, max_duration, text_safe_selection, max_text_frame_percent,
+        ai_backend, ai_model_name, chunk_size, model, enable_captions, workflow,
+        face_model, face_mode, face_detect_interval, no_face_mode,
+        face_preset, face_filter_thresh, face_two_thresh, face_conf_thresh, face_dead_zone,
+        experimental_preset, focus_active_speaker, active_speaker_mar, active_speaker_score_diff,
+        include_motion, active_speaker_motion_threshold, active_speaker_motion_sensitivity, active_speaker_decay,
+        subtitle_preset, use_custom_subs, font_name, font_size, font_color, highlight_color,
+        outline_color, outline_thickness, shadow_color, shadow_size, is_bold, is_italic, is_uppercase,
+        h_size, w_block, gap, mode, under, strike, border_s, vertical_pos, alignment, remove_punc,
+    )
+
     yield "", gr.update(value=i18n("Running..."), interactive=False), gr.update(visible=True), None 
 
     cmd = [sys.executable, MAIN_SCRIPT_PATH]
@@ -398,21 +381,22 @@ footer {visibility: hidden}
 import header
 
 with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_hue="orange", neutral_hue="slate"), css=css) as demo:
+    ui_state = ui_cfg.load_ui_state()
     gr.Markdown(header.badges)
     gr.Markdown(header.description)
     with gr.Tabs():
         with gr.Tab(i18n("Create New")):
              with gr.Row():
                 with gr.Column(scale=1):
-                    input_source = gr.Radio([(i18n("YouTube URL"), "YouTube URL"), (i18n("Existing Project"), "Existing Project"), (i18n("Upload Video"), "Upload Video")], label=i18n("Input Source"), value="YouTube URL")
+                    input_source = gr.Radio([(i18n("YouTube URL"), "YouTube URL"), (i18n("Existing Project"), "Existing Project"), (i18n("Upload Video"), "Upload Video")], label=i18n("Input Source"), value=ui_state.get("input_source", "YouTube URL"))
                     
                     url_input = gr.Textbox(label=i18n("YouTube URL"), placeholder="https://www.youtube.com/watch?v=...", visible=True)
                     video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
                     
                     with gr.Row():
-                        video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value="best")
-                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value="None")
-                        use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=True, info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
+                        video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=ui_state.get("video_quality", "best"))
+                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"))
+                        use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=ui_state.get("use_youtube_subs", True), info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
 
                     project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
                     
@@ -428,63 +412,64 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     
                     
                     with gr.Row():
-                        segments_input = gr.Number(label=i18n("Segments"), value=3, precision=0)
-                        viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=True)
-                    themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), visible=False)
+                        segments_input = gr.Number(label=i18n("Segments"), value=ui_state.get("segments", 3), precision=0)
+                        viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=ui_state.get("viral", True))
+                    themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), value=ui_state.get("themes", ""), visible=not ui_state.get("viral", True))
                     viral_input.change(lambda x: gr.update(visible=not x), viral_input, themes_input)
                     with gr.Row():
-                        min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=15)
-                        max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=90)
+                        min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=ui_state.get("min_duration", 15))
+                        max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=ui_state.get("max_duration", 90))
                     with gr.Row():
                         text_safe_selection_input = gr.Checkbox(
                             label=i18n("Text Safe Selection"),
-                            value=False,
+                            value=ui_state.get("text_safe_selection", False),
                             info=i18n("Prefer segments with fewer captions or watermarks clipped by a centered 9:16 crop."),
                         )
                         max_text_frame_percent_input = gr.Slider(
                             label=i18n("Maximum Crop-Risk Text Frames (%)"),
                             minimum=0,
                             maximum=100,
-                            value=15,
+                            value=ui_state.get("max_text_frame_percent", 15),
                             step=1,
                             info=i18n("If no segment meets this limit, the lowest-risk segment is selected."),
                         )
                 with gr.Column(scale=1):
                     with gr.Row():
-                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value="gemini", scale=2)
-                        api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", scale=3)
+                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
+                        api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
                     
                     # New Dynamic Inputs
                     with gr.Row():
-                        ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=GEMINI_MODELS[0], allow_custom_value=True, visible=True, scale=5)
-                        chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=70000, precision=0, scale=2)
+                        ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=5)
+                        chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=2)
                     
                     def update_ai_ui(backend):
                         show_api = backend in ("gemini", "groq")
                         api_label = i18n("Groq API Key") if backend == "groq" else i18n("Gemini API Key")
+                        saved = ui_cfg.load_ui_state()
                         new_choices = []
-                        new_val = ""
-                        new_chunk = 70000
+                        new_val = saved.get("ai_model_name", "")
+                        new_chunk = saved.get("chunk_size", 70000)
                         
                         if backend == "gemini":
                             new_choices = GEMINI_MODELS
-                            new_val = GEMINI_MODELS[0]
-                            new_chunk = 70000
+                            new_val = new_val if new_val in GEMINI_MODELS else GEMINI_MODELS[0]
+                            new_chunk = saved.get("chunk_size", 70000)
                         elif backend == "g4f":
                             new_choices = G4F_MODELS
-                            new_val = G4F_MODELS[5]
-                            new_chunk = 70000
+                            new_val = new_val if new_val in G4F_MODELS else G4F_MODELS[5]
+                            new_chunk = saved.get("chunk_size", 70000)
                         elif backend == "groq":
                             new_choices = GROQ_MODELS
-                            new_val = GROQ_MODELS[0]
-                            new_chunk = 40000
+                            new_val = new_val if new_val in GROQ_MODELS else GROQ_MODELS[0]
+                            new_chunk = saved.get("chunk_size", 40000)
                         elif backend == "cloudflare":
                             new_choices = CLOUDFLARE_MODELS
-                            new_val = CLOUDFLARE_MODELS[0]
-                            new_chunk = 40000
+                            new_val = new_val if new_val in CLOUDFLARE_MODELS else CLOUDFLARE_MODELS[0]
+                            new_chunk = saved.get("chunk_size", 40000)
 
                         return (
-                            gr.update(visible=show_api, label=api_label),
+                            gr.update(visible=show_api, label=api_label, value=ui_cfg.load_saved_api_key(backend)),
                             gr.update(choices=new_choices, value=new_val, visible=(backend != "manual")),
                             gr.update(value=new_chunk)
                         )
@@ -499,15 +484,15 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
 
                     ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input)
 
-                    model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value="cloudflare")
+                    model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value=ui_state.get("whisper_backend", "cloudflare"))
                     enable_captions_input = gr.Checkbox(
                         label=i18n("Enable Captions (Whisper)"),
-                        value=True,
+                        value=ui_state.get("enable_captions", True),
                         info=i18n("Uncheck to skip transcription and subtitle burning (saves STT quota)."),
                     )
                     with gr.Row():
-                        workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value="Full")
-                        face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value="insightface")
+                        workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value=ui_state.get("workflow", "Full"))
+                        face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value=ui_state.get("face_model", "insightface"))
                     with gr.Row():
                         face_mode_input = gr.Dropdown(
                             choices=[
@@ -517,44 +502,45 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                                 (i18n("Fixed Center (No Tracking)"), "fixed_center"),
                             ],
                             label=i18n("Face Mode"),
-                            value="auto",
+                            value=ui_state.get("face_mode", "auto"),
                         )
-                        face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value="0.17,1.0")
-                        no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value="zoom")
+                        face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=ui_state.get("face_detect_interval", "0.17,1.0"))
+                        no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value=ui_state.get("no_face_mode", "zoom"))
                     
                     
                     # Update listeners now that all components are defined
                     input_source.change(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input])
+                    demo.load(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input], queue=False, show_progress="hidden")
              
              with gr.Accordion(i18n("Advanced Face Settings"), open=False):
-                 face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value="Default (Balanced)", interactive=True)
+                 face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("face_preset", "Default (Balanced)"), interactive=True)
                  with gr.Row():
-                      face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=0.35, step=0.05, info=i18n("Relative size to ignore background."))
-                      face_two_thresh_input = gr.Slider(label=i18n("Threshold for 2 Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=0.60, step=0.05, info=i18n("Size of 2nd face to activate split mode."))
-                      face_conf_thresh_input = gr.Slider(label=i18n("Minimum Confidence (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=0.40, step=0.05, info=i18n("Ignore detections with low confidence."))
-                      face_dead_zone_input = gr.Slider(label=i18n("Dead Zone (Stabilization)"), minimum=0, maximum=200, value=150, step=5, info=i18n("Movement pixels to ignore."))
+                      face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.35), step=0.05, info=i18n("Relative size to ignore background."))
+                      face_two_thresh_input = gr.Slider(label=i18n("Threshold for 2 Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_two_thresh", 0.60), step=0.05, info=i18n("Size of 2nd face to activate split mode."))
+                      face_conf_thresh_input = gr.Slider(label=i18n("Minimum Confidence (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_conf_thresh", 0.40), step=0.05, info=i18n("Ignore detections with low confidence."))
+                      face_dead_zone_input = gr.Slider(label=i18n("Dead Zone (Stabilization)"), minimum=0, maximum=200, value=ui_state.get("face_dead_zone", 150), step=5, info=i18n("Movement pixels to ignore."))
                  
                  face_preset_input.change(apply_face_preset, inputs=face_preset_input, outputs=[face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input])
 
                  with gr.Accordion(i18n("Experimental: Active Speaker & Motion"), open=False):
-                        experimental_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in EXPERIMENTAL_PRESETS.keys()], label=i18n("Configuration Presets"), value="Default (Off)", interactive=True)
-                        focus_active_speaker_input = gr.Checkbox(label=i18n("Experimental: Focus on Speaker"), value=False, info=i18n("Tries to focus only on the speaking person instead of split screen."))
+                        experimental_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in EXPERIMENTAL_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("experimental_preset", "Default (Off)"), interactive=True)
+                        focus_active_speaker_input = gr.Checkbox(label=i18n("Experimental: Focus on Speaker"), value=ui_state.get("focus_active_speaker", False), info=i18n("Tries to focus only on the speaking person instead of split screen."))
                         with gr.Row():
-                            active_speaker_mar_input = gr.Slider(label=i18n("MAR Threshold (Mouth Open)"), minimum=0.01, maximum=0.20, value=0.03, step=0.005, info=i18n("Mouth open sensitivity."))
-                            active_speaker_score_diff_input = gr.Slider(label=i18n("Score Difference"), minimum=0.5, maximum=10.0, value=1.5, step=0.5, info=i18n("Minimum difference to focus on 1 face."))
+                            active_speaker_mar_input = gr.Slider(label=i18n("MAR Threshold (Mouth Open)"), minimum=0.01, maximum=0.20, value=ui_state.get("active_speaker_mar", 0.03), step=0.005, info=i18n("Mouth open sensitivity."))
+                            active_speaker_score_diff_input = gr.Slider(label=i18n("Score Difference"), minimum=0.5, maximum=10.0, value=ui_state.get("active_speaker_score_diff", 1.5), step=0.5, info=i18n("Minimum difference to focus on 1 face."))
                             
                         with gr.Row():
-                            include_motion_input = gr.Checkbox(label=i18n("Consider Motion"), value=False, info=i18n("Increases score with motion (gestures)."))
+                            include_motion_input = gr.Checkbox(label=i18n("Consider Motion"), value=ui_state.get("include_motion", False), info=i18n("Increases score with motion (gestures)."))
                             
                         with gr.Row():
-                            active_speaker_motion_threshold_input = gr.Slider(label=i18n("Motion Dead Zone"), minimum=0.0, maximum=20.0, value=3.0, step=0.5, info=i18n("Pixels ignored."))
-                            active_speaker_motion_sensitivity_input = gr.Slider(label=i18n("Motion Sensitivity"), minimum=0.01, maximum=0.5, value=0.05, step=0.01, info=i18n("Points per pixel."))
-                            active_speaker_decay_input = gr.Slider(label=i18n("Switch Speed"), minimum=0.5, maximum=5.0, value=2.0, step=0.5, info=i18n("Speed to lose focus."))
+                            active_speaker_motion_threshold_input = gr.Slider(label=i18n("Motion Dead Zone"), minimum=0.0, maximum=20.0, value=ui_state.get("active_speaker_motion_threshold", 3.0), step=0.5, info=i18n("Pixels ignored."))
+                            active_speaker_motion_sensitivity_input = gr.Slider(label=i18n("Motion Sensitivity"), minimum=0.01, maximum=0.5, value=ui_state.get("active_speaker_motion_sensitivity", 0.05), step=0.01, info=i18n("Points per pixel."))
+                            active_speaker_decay_input = gr.Slider(label=i18n("Switch Speed"), minimum=0.5, maximum=5.0, value=ui_state.get("active_speaker_decay", 2.0), step=0.5, info=i18n("Speed to lose focus."))
 
                         experimental_preset_input.change(apply_experimental_preset, inputs=experimental_preset_input, outputs=[focus_active_speaker_input, active_speaker_mar_input, active_speaker_score_diff_input, include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input])
              with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False):
-                preset_input = gr.Dropdown(choices=[(i18n("Manual"), "Manual")] + [(i18n(k), k) for k in subs.SUBTITLE_PRESETS.keys()], label=i18n("Quick Presets"), value="Hormozi (Classic)")
-                use_custom_subs = gr.Checkbox(label=i18n("Enable Subtitle Customization (Includes Preset)"), value=True)
+                preset_input = gr.Dropdown(choices=[(i18n("Manual"), "Manual")] + [(i18n(k), k) for k in subs.SUBTITLE_PRESETS.keys()], label=i18n("Quick Presets"), value=ui_state.get("subtitle_preset", "Hormozi (Classic)"))
+                use_custom_subs = gr.Checkbox(label=i18n("Enable Subtitle Customization (Includes Preset)"), value=ui_state.get("use_custom_subs", True))
                 
                 # Previews (Always Visible)
                 preview_html = gr.HTML(value=f"<div style='text-align:center; padding:10px; color:#666;'>{i18n('Select options or preset to preview')}</div>")
@@ -566,37 +552,37 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                 with gr.Accordion(i18n("Advanced Settings"), open=False):
                     gr.Markdown(f"### {i18n('Appearance')}")
                     with gr.Row():
-                        font_name_input = gr.Textbox(label=i18n("Font Name"), value="Montserrat-Regular")
-                        font_size_input = gr.Slider(label=i18n("Font Size (Base)"), minimum=8, maximum=80, value=12)
-                        highlight_size_input = gr.Slider(label=i18n("Highlight Size"), minimum=8, maximum=80, value=14)
+                        font_name_input = gr.Textbox(label=i18n("Font Name"), value=ui_state.get("font_name", "Montserrat-Regular"))
+                        font_size_input = gr.Slider(label=i18n("Font Size (Base)"), minimum=8, maximum=80, value=ui_state.get("font_size", 12))
+                        highlight_size_input = gr.Slider(label=i18n("Highlight Size"), minimum=8, maximum=80, value=ui_state.get("highlight_size", 14))
                     
                     with gr.Row():
-                        font_color_input = gr.ColorPicker(label=i18n("Base Color"), value="#FFFFFF")
-                        highlight_color_input = gr.ColorPicker(label=i18n("Highlight Color"), value="#00FF00")
-                        outline_color_input = gr.ColorPicker(label=i18n("Outline Color"), value="#000000")
-                        shadow_color_input = gr.ColorPicker(label=i18n("Shadow Color"), value="#000000")
+                        font_color_input = gr.ColorPicker(label=i18n("Base Color"), value=ui_state.get("font_color", "#FFFFFF"))
+                        highlight_color_input = gr.ColorPicker(label=i18n("Highlight Color"), value=ui_state.get("highlight_color", "#00FF00"))
+                        outline_color_input = gr.ColorPicker(label=i18n("Outline Color"), value=ui_state.get("outline_color", "#000000"))
+                        shadow_color_input = gr.ColorPicker(label=i18n("Shadow Color"), value=ui_state.get("shadow_color", "#000000"))
                     
                     gr.Markdown(f"### {i18n('Styling & Effects')}")
                     with gr.Row():
-                        outline_thickness_input = gr.Slider(label=i18n("Outline Thickness"), minimum=0, maximum=10, value=1.5)
-                        shadow_size_input = gr.Slider(label=i18n("Shadow Size"), minimum=0, maximum=10, value=2)
-                        border_style_input = gr.Dropdown(choices=[(i18n("Outline"), 1), (i18n("Opaque Box"), 3)], label=i18n("Border Style"), value=1)
+                        outline_thickness_input = gr.Slider(label=i18n("Outline Thickness"), minimum=0, maximum=10, value=ui_state.get("outline_thickness", 1.5))
+                        shadow_size_input = gr.Slider(label=i18n("Shadow Size"), minimum=0, maximum=10, value=ui_state.get("shadow_size", 2))
+                        border_style_input = gr.Dropdown(choices=[(i18n("Outline"), 1), (i18n("Opaque Box"), 3)], label=i18n("Border Style"), value=ui_state.get("border_s", 1))
                     
                     with gr.Row():
-                        bold_input = gr.Checkbox(label=i18n("Bold"))
-                        italic_input = gr.Checkbox(label=i18n("Italic"))
-                        uppercase_input = gr.Checkbox(label=i18n("Uppercase"))
-                        remove_punc_input = gr.Checkbox(label=i18n("Remove Punctuation"), value=True)
-                        underline_input = gr.Checkbox(label=i18n("Underline"))
-                        strikeout_input = gr.Checkbox(label=i18n("Strikeout"))
+                        bold_input = gr.Checkbox(label=i18n("Bold"), value=ui_state.get("is_bold", False))
+                        italic_input = gr.Checkbox(label=i18n("Italic"), value=ui_state.get("is_italic", False))
+                        uppercase_input = gr.Checkbox(label=i18n("Uppercase"), value=ui_state.get("is_uppercase", False))
+                        remove_punc_input = gr.Checkbox(label=i18n("Remove Punctuation"), value=ui_state.get("remove_punc", True))
+                        underline_input = gr.Checkbox(label=i18n("Underline"), value=ui_state.get("under", False))
+                        strikeout_input = gr.Checkbox(label=i18n("Strikeout"), value=ui_state.get("strike", False))
                         
                     gr.Markdown(f"### {i18n('Positioning & Layout')}")
                     with gr.Row():
-                        vertical_pos_input = gr.Slider(label=i18n("V-Pos (Margin V)"), minimum=0, maximum=500, value=210)
-                        alignment_input = gr.Dropdown(choices=[(i18n("Left"), 1), (i18n("Center"), 2), (i18n("Right"), 3)], label=i18n("Alignment"), value=2)
-                        gap_limit_input = gr.Slider(label=i18n("Gap Limit"), minimum=0.0, maximum=5.0, value=0.5, step=0.1)
-                        mode_input = gr.Dropdown(choices=[(i18n("Highlight"), "highlight"), (i18n("Word by Word"), "word_by_word"), (i18n("No Highlight"), "no_highlight")], label=i18n("Mode"), value="highlight")
-                        words_per_block_input = gr.Slider(label=i18n("Words per Block"), minimum=1, maximum=20, value=3, step=1)
+                        vertical_pos_input = gr.Slider(label=i18n("V-Pos (Margin V)"), minimum=0, maximum=500, value=ui_state.get("vertical_pos", 210))
+                        alignment_input = gr.Dropdown(choices=[(i18n("Left"), 1), (i18n("Center"), 2), (i18n("Right"), 3)], label=i18n("Alignment"), value=ui_state.get("alignment", 2))
+                        gap_limit_input = gr.Slider(label=i18n("Gap Limit"), minimum=0.0, maximum=5.0, value=ui_state.get("gap", 0.5), step=0.1)
+                        mode_input = gr.Dropdown(choices=[(i18n("Highlight"), "highlight"), (i18n("Word by Word"), "word_by_word"), (i18n("No Highlight"), "no_highlight")], label=i18n("Mode"), value=ui_state.get("mode", "highlight"))
+                        words_per_block_input = gr.Slider(label=i18n("Words per Block"), minimum=1, maximum=20, value=ui_state.get("w_block", 3), step=1)
 
                 manual_inputs = [
                     font_name_input, font_size_input, font_color_input, highlight_color_input, 
@@ -624,7 +610,38 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                 
                 # Initial load
                 demo.load(subs.generate_preview_html, inputs=manual_inputs, outputs=preview_html)
-                demo.load(subs.apply_preset, inputs=[preset_input], outputs=manual_inputs) # Apply default preset on load
+
+             _persist_inputs = [
+                 input_source, video_quality_input, translate_input, use_youtube_subs_input,
+                 segments_input, viral_input, themes_input, min_dur_input, max_dur_input,
+                 text_safe_selection_input, max_text_frame_percent_input,
+                 ai_backend_input, ai_model_input, chunk_size_input,
+                 model_input, enable_captions_input, workflow_input,
+                 face_model_input, face_mode_input, face_detect_interval_input, no_face_mode_input,
+                 face_preset_input, face_filter_thresh_input, face_two_thresh_input, face_conf_thresh_input, face_dead_zone_input,
+                 experimental_preset_input, focus_active_speaker_input, active_speaker_mar_input, active_speaker_score_diff_input,
+                 include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input,
+                 preset_input, use_custom_subs,
+             ] + manual_inputs
+
+             def _persist_web_settings(api_key, *values):
+                 ui_cfg.persist_create_tab_settings(api_key, *values)
+
+             gr.on(
+                 triggers=[c.change for c in _persist_inputs],
+                 fn=_persist_web_settings,
+                 inputs=[api_key_input] + _persist_inputs,
+                 outputs=None,
+                 queue=False,
+                 show_progress="hidden",
+             )
+             api_key_input.change(
+                 lambda backend, key: ui_cfg.save_api_key(backend, key),
+                 inputs=[ai_backend_input, api_key_input],
+                 outputs=None,
+                 queue=False,
+                 show_progress="hidden",
+             )
 
              with gr.Row():
                  start_btn = gr.Button(i18n("Start Processing"), variant="primary")
@@ -676,7 +693,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                  # New Inputs
                  highlight_size_input, words_per_block_input, gap_limit_input, mode_input, 
                  underline_input, strikeout_input, border_style_input, remove_punc_input,
-                 video_quality_input, use_youtube_subs_input, translate_input
+                 video_quality_input, use_youtube_subs_input, translate_input,
+                 face_preset_input, experimental_preset_input, preset_input,
              ], outputs=[logs_output, start_btn, stop_btn, results_html])
 
 
@@ -684,7 +702,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
             gr.Markdown(f"### {i18n('Edit Subtitles (Smart Mode)')}")
             
             with gr.Group():
-                editor_project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=None)
+                editor_project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("editor_project"))
                 editor_refresh_btn = gr.Button(i18n("Refresh"), size="sm")
             
             with gr.Group():
@@ -843,16 +861,33 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                 outputs=editor_status
             )
 
+            editor_project_dropdown.change(
+                lambda project: ui_cfg.save_ui_state({"editor_project": project}),
+                inputs=editor_project_dropdown,
+                outputs=None,
+                queue=False,
+                show_progress="hidden",
+            )
+
 
         with gr.Tab(i18n("Library")):
             gr.Markdown(f"### {i18n('Existing Projects')}")
             with gr.Row():
-                project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=None)
+                project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("library_project"))
                 refresh_btn = gr.Button(i18n("Refresh List"))
             project_gallery_html = gr.HTML()
             refresh_btn.click(library.refresh_projects, outputs=project_dropdown)
             def on_select_project(proj_name): return library.generate_project_gallery(proj_name)
             project_dropdown.change(on_select_project, project_dropdown, project_gallery_html)
+            project_dropdown.change(
+                lambda project: ui_cfg.save_ui_state({"library_project": project}),
+                inputs=project_dropdown,
+                outputs=None,
+                queue=False,
+                show_progress="hidden",
+            )
+            if ui_state.get("library_project"):
+                demo.load(on_select_project, inputs=project_dropdown, outputs=project_gallery_html, queue=False, show_progress="hidden")
     
     gr.Markdown(f"""
         <hr>

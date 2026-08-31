@@ -8,6 +8,7 @@ import io
 import subprocess
 import urllib.request
 import urllib.error
+from difflib import SequenceMatcher
 
 # Configure stdout to avoid encoding errors on Windows (replace invalid characters with ?)
 if sys.stdout and hasattr(sys.stdout, 'buffer'):
@@ -453,13 +454,121 @@ def load_transcript(project_folder):
     
     return transcript_segments
 
+def _normalize_candidate_text(value):
+    return re.sub(r"[^\w\s]", "", str(value or "").lower()).strip()
+
+
+def _candidate_score(candidate):
+    try:
+        return int(candidate.get("score", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _candidate_ref_seconds(candidate):
+    value = candidate.get("start_time_ref")
+    if isinstance(value, (int, float)):
+        return float(value)
+    match = re.search(r"\d+(?:\.\d+)?", str(value or ""))
+    return float(match.group()) if match else None
+
+
+def dedupe_raw_candidates(candidates, ref_tolerance=15.0, text_similarity=0.72):
+    """Drop inter-chunk duplicates only when both reference time and text agree."""
+    enriched = []
+    for candidate in candidates or []:
+        if not isinstance(candidate, dict):
+            continue
+        content = " ".join(
+            filter(
+                None,
+                [
+                    _normalize_candidate_text(candidate.get("start_text")),
+                    _normalize_candidate_text(candidate.get("end_text")),
+                ],
+            )
+        )
+        if not content:
+            content = _normalize_candidate_text(candidate.get("title"))
+        enriched.append(
+            {
+                "candidate": candidate,
+                "ref": _candidate_ref_seconds(candidate),
+                "content": content,
+                "score": _candidate_score(candidate),
+            }
+        )
+
+    enriched.sort(key=lambda item: item["score"], reverse=True)
+    kept = []
+    for item in enriched:
+        duplicate = False
+        for existing in kept:
+            if item["ref"] is None or existing["ref"] is None:
+                continue
+            if abs(item["ref"] - existing["ref"]) > float(ref_tolerance):
+                continue
+            if not item["content"] or not existing["content"]:
+                continue
+            similarity = SequenceMatcher(None, item["content"], existing["content"]).ratio()
+            if similarity >= float(text_similarity):
+                duplicate = True
+                print(
+                    f"[DEDUPE] Dropping raw duplicate '{item['candidate'].get('title', '?')}' "
+                    f"(ref {item['ref']:.1f}s, text similarity {similarity:.0%})."
+                )
+                break
+        if not duplicate:
+            kept.append(item)
+    return [item["candidate"] for item in kept]
+
+
+def _transcript_boundary_at_or_after(transcript_segments, start_index, target_time):
+    for transcript in transcript_segments[max(0, int(start_index)):]:
+        try:
+            end = float(transcript["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if end >= float(target_time):
+            return end
+    return None
+
+
+def dedupe_aligned_segments(segments, min_separation=5.0, overlap_epsilon=2.0):
+    """Keep highest-scoring aligned cuts with no material overlap or near-identical centers."""
+    ordered = sorted(segments or [], key=_candidate_score, reverse=True)
+    kept = []
+    for candidate in ordered:
+        start = float(candidate["start_time"])
+        end = float(candidate["end_time"])
+        center = (start + end) / 2.0
+        duplicate = False
+        for existing in kept:
+            other_start = float(existing["start_time"])
+            other_end = float(existing["end_time"])
+            other_center = (other_start + other_end) / 2.0
+            overlap = min(end, other_end) - max(start, other_start)
+            if overlap > float(overlap_epsilon) or abs(center - other_center) < float(min_separation):
+                duplicate = True
+                print(
+                    f"[DEDUPE] Dropping aligned duplicate '{candidate.get('title', '?')}' "
+                    f"({start:.1f}-{end:.1f}s) in favor of "
+                    f"'{existing.get('title', '?')}' ({other_start:.1f}-{other_end:.1f}s)."
+                )
+                break
+        if not duplicate:
+            kept.append(candidate)
+    return kept
+
 def process_segments(raw_segments, transcript_segments, min_duration, max_duration, output_count=None):
     """
     Aligns raw AI segments (with reference tags) to actual transcript timestamps.
     Applies constraints, validation, and deduplication.
     """
     
-    all_segments = raw_segments
+    print(f"[DEBUG] Raw candidates before dedupe: {len(raw_segments or [])}")
+    all_segments = dedupe_raw_candidates(raw_segments)
+    print(f"[DEBUG] Raw candidates after dedupe: {len(all_segments)}")
     tempo_minimo = min_duration
     tempo_maximo = max_duration
     
@@ -546,18 +655,32 @@ def process_segments(raw_segments, transcript_segments, min_duration, max_durati
                          final_end_time = transcript_segments[i]['end']
                          break
             
-            # Fallback End Time
+            alignment_confidence = "high"
             if final_end_time == -1:
-                 final_end_time = final_start_time + tempo_minimo 
-            
-            # Calculate Duration
+                final_end_time = _transcript_boundary_at_or_after(
+                    transcript_segments,
+                    match_start_idx,
+                    final_start_time + float(tempo_minimo),
+                )
+                alignment_confidence = "low"
+                if final_end_time is None:
+                    print(f"[WARN] Dropping '{seg.get('title', '?')}' because end_text and a safe transcript boundary were not found.")
+                    continue
+                print(f"[WARN] Candidate '{seg.get('title', '?')}' used a transcript-boundary fallback and is marked low-confidence.")
+
             duration = final_end_time - final_start_time
-            
-            # Validate Duration (Min)
-            if duration < tempo_minimo: 
-                print(f"[WARN] Segment shorter than min duration ({duration:.2f}s < {tempo_minimo}s). Extending to {tempo_minimo}s.")
-                duration = tempo_minimo
-                final_end_time = final_start_time + duration
+
+            if duration < tempo_minimo:
+                extended_end = _transcript_boundary_at_or_after(
+                    transcript_segments,
+                    match_start_idx,
+                    final_start_time + float(tempo_minimo),
+                )
+                if extended_end is None:
+                    print(f"[WARN] Dropping '{seg.get('title', '?')}' because it cannot reach the minimum duration on transcript boundaries.")
+                    continue
+                final_end_time = extended_end
+                duration = final_end_time - final_start_time
             
             # Validate Duration (Max)
             if duration > tempo_maximo:
@@ -573,37 +696,29 @@ def process_segments(raw_segments, transcript_segments, min_duration, max_durati
                 "hook": seg.get('title', ''), 
                 "reasoning": seg.get('reasoning', ''),
                 "score": seg.get('score', 0),
-                "duration": duration
+                "duration": duration,
+                "alignment_confidence": alignment_confidence
             })
 
         except Exception as e:
             print(f"[WARN] Error processing segment {seg}: {e}")
             continue
 
-    # Deduplication
-    unique_segments = []
-    processed_segments.sort(key=lambda x: int(x.get('score', 0)), reverse=True)
-    
-    for candidate in processed_segments:
-        is_dup = False
-        for existing in unique_segments:
-            s1, e1 = candidate['start_time'], candidate['end_time']
-            # Simple float equality isn't safe, but max/min handles it
-            s2, e2 = existing['start_time'], existing['end_time']
-            
-            overlap_start = max(s1, s2)
-            overlap_end = min(e1, e2)
-            
-            if overlap_end > overlap_start:
-                intersection = overlap_end - overlap_start
-                if intersection > 5: # more than 5 seconds overlap
-                    is_dup = True
-                    print(f"[DEBUG] Dropping overlap: '{candidate.get('title')}' ({s1:.1f}-{e1:.1f}) overlaps with '{existing.get('title')}' ({s2:.1f}-{e2:.1f}) by {intersection:.1f}s")
-                    break
-        if not is_dup:
-            unique_segments.append(candidate)
+    reliable_segments = [
+        segment for segment in processed_segments
+        if segment.get("alignment_confidence") == "high"
+    ]
+    low_confidence_count = len(processed_segments) - len(reliable_segments)
+    if low_confidence_count:
+        print(f"[WARN] Dropping {low_confidence_count} low-confidence candidate(s) before cutting.")
+    if not reliable_segments and processed_segments:
+        print("[WARN] No reliably aligned speech segments remain; visual fallback will be used.")
 
-    all_segments = unique_segments
+    try:
+        separation = max(5.0, min(float(tempo_minimo) / 2.0, 30.0))
+    except (TypeError, ValueError):
+        separation = 5.0
+    all_segments = dedupe_aligned_segments(reliable_segments, min_separation=separation)
     print(f"[DEBUG] Finished processing. {len(all_segments)} segments valid.")
 
     if output_count and len(all_segments) > output_count:
