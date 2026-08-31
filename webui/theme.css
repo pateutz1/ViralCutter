@@ -689,21 +689,23 @@ button#vc-nav-library::before {
     outline: none !important;
 }
 
+/* Dropdown/Select Styling - Premium Look */
+.gradio-container select,
 .gradio-container .wrap:has(input[role="combobox"]) {
-    min-height: 40px !important;
+    min-height: 44px !important;
+    padding: 0 16px !important;
     overflow: hidden !important;
-    border: 1px solid var(--vc-border-strong) !important;
-    border-radius: var(--vc-radius-sm) !important;
+    border-radius: var(--vc-radius-lg) !important;
     outline: 0 !important;
     background: var(--vc-panel) !important;
     box-shadow: none !important;
-    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
 }
 
-.gradio-container .wrap:has(input[role="combobox"]):hover { border-color: color-mix(in srgb, var(--vc-primary) 28%, var(--vc-border-strong)) !important; }
-.gradio-container .wrap:has(input[role="combobox"]):focus-within { border-color: var(--vc-primary) !important; box-shadow: 0 0 0 3px var(--vc-accent-soft) !important; }
 .gradio-container .wrap:has(input[role="combobox"]) .wrap-inner {
-    min-height: 38px !important;
+    min-height: 42px !important;
     border: 0 !important;
     border-radius: 0 !important;
     outline: 0 !important;
@@ -711,7 +713,16 @@ button#vc-nav-library::before {
     box-shadow: none !important;
 }
 
-.gradio-container .secondary-wrap { display: flex !important; flex: 1 1 auto !important; justify-content: center !important; width: 100% !important; text-align: center !important; }
+.gradio-container .secondary-wrap { 
+    display: flex !important; 
+    flex: 1 1 auto !important; 
+    align-items: center !important;
+    justify-content: center !important; 
+    width: 100% !important; 
+    padding: 0 8px !important;
+    text-align: center !important; 
+}
+
 .gradio-container input[role="combobox"],
 .gradio-container input.border-none,
 .gradio-container .wrap-inner input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
@@ -722,6 +733,10 @@ button#vc-nav-library::before {
     background: transparent !important;
     box-shadow: none !important;
     text-align: center !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    color: var(--vc-text) !important;
 }
 
 .gradio-container .wrap-inner .token,
@@ -1114,6 +1129,32 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .vc-score-ok { color: var(--vc-success); }
 .vc-score-mid { color: var(--vc-warning); }
 .vc-score-low { color: var(--vc-error); }
+
+/* Video Quality and YouTube Subs Field Styling */
+.vc-youtube-subs-field {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+}
+
+.vc-youtube-subs-field .checkbox-container {
+    margin-bottom: 8px !important;
+}
+
+.vc-field-help {
+    margin: 0 !important;
+    padding: 0 12px 0 28px !important;
+    color: var(--vc-text-secondary) !important;
+    font-size: 0.73rem !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+    letter-spacing: -0.008em !important;
+}
+
+.vc-field-help p {
+    margin: 0 !important;
+    padding: 0 !important;
+}
 
 @media (max-width: 900px) {
     .gradio-container { width: calc(100% - 20px) !important; padding: 16px 14px 52px !important; }
