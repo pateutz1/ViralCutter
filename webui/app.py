@@ -436,6 +436,18 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
         queue=False,
         show_progress="hidden",
     )
+
+    gr.HTML("""
+<section class="vc-workspace-heading" id="vc-workspace">
+  <div>
+    <span class="vc-eyebrow">New production</span>
+    <h1>Create your next short</h1>
+    <p>Choose the source, tune clip selection, and control framing and captions in one focused workspace.</p>
+  </div>
+  <div class="vc-workspace-meta"><span>01</span><small>Workspace</small></div>
+</section>
+""")
+
     with gr.Row(elem_id="vc-workspace-nav", elem_classes=["vc-workspace-nav"]):
         nav_create_btn = gr.Button(
             i18n("Create New"),
@@ -455,16 +467,6 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
 
     with gr.Tabs(selected="create", elem_id="vc-main-tabs") as main_tabs:
         with gr.Tab(i18n("Create New"), id="create"):
-             gr.HTML("""
-<section class="vc-workspace-heading" id="vc-workspace">
-  <div>
-    <span class="vc-eyebrow">Creation workspace</span>
-    <h1>Build your next short</h1>
-    <p>Set the source, processing intelligence, crop behavior, and captions in one focused workflow.</p>
-  </div>
-  <div class="vc-workspace-meta"><span>01</span><small>Configure</small></div>
-</section>
-""")
              with gr.Row(equal_height=False, elem_classes=["vc-core-grid"]):
                 with gr.Column(scale=1, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-video"]):
@@ -482,9 +484,23 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             elem_id="vc-youtube-url",
                         )
                         video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
-                        with gr.Row():
-                            video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=ui_state.get("video_quality", "best"))
-                            use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=ui_state.get("use_youtube_subs", True))
+                        with gr.Row(elem_classes=["vc-video-quality-row"]):
+                            video_quality_input = gr.Dropdown(
+                                choices=["best", "1080p", "720p", "480p"],
+                                label=i18n("Video Quality"),
+                                value=ui_state.get("video_quality", "best"),
+                                scale=2,
+                                elem_classes=["vc-compact-control", "vc-video-quality-control"],
+                            )
+                            with gr.Column(scale=3, elem_classes=["vc-youtube-subs-field"]):
+                                use_youtube_subs_input = gr.Checkbox(
+                                    label=i18n("Use YouTube Subs"),
+                                    value=ui_state.get("use_youtube_subs", True),
+                                )
+                                gr.Markdown(
+                                    i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"),
+                                    elem_classes=["vc-field-help"],
+                                )
                         project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
 
                     def on_source_change(source):
@@ -503,7 +519,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
                             api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
                         with gr.Row():
-                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=5)
+                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=3, elem_classes=["vc-compact-control", "vc-ai-model-control"])
                             chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=2)
 
                     def update_ai_ui(backend):
@@ -558,6 +574,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             label=i18n("Generation Profile"),
                             value=ui_state.get("generation_profile", "Custom"),
                             info=i18n("Sets clip count, duration, face mode, tracking speed, and face preset together."),
+                            elem_classes=["vc-compact-control", "vc-profile-control"],
                         )
                         with gr.Row():
                             segments_input = gr.Number(label=i18n("Segments"), value=ui_state.get("segments", 3), precision=0)
@@ -587,7 +604,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                                 label=i18n("Enable Captions"),
                                 value=ui_state.get("enable_captions", True),
                             )
-                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"))
+                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"), elem_classes=["vc-compact-control", "vc-translate-control"])
 
              with gr.Group(elem_classes=["vc-card", "vc-card-wide"]):
                 gr.Markdown(f"### {i18n('Face / Vertical')}")
