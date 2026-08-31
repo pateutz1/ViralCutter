@@ -106,6 +106,83 @@ def sort_by_proximity(new_faces, old_faces, center_func):
     
     return new_faces
 
+# Sticky-focus / scene-cut internals (InsightFace auto only). No UI knobs.
+SCENE_SIGNATURE_SIZE = (64, 36)
+SCENE_CUT_SCORE_THRESHOLD = 0.36
+SCENE_CUT_CONFIRM_FRAMES = 2
+STICKY_JUMP_PX = 150.0
+STICKY_REPLACE_CONFIRM = 2
+
+
+def build_scene_signature(frame, size=SCENE_SIGNATURE_SIZE):
+    """Compact grayscale + histogram fingerprint for cheap scene comparison."""
+    if frame is None or getattr(frame, "size", 0) == 0:
+        return None
+    small = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
+    if small.ndim == 3:
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = small
+    hist = cv2.calcHist([gray], [0], None, [32], [0, 256])
+    cv2.normalize(hist, hist)
+    return {"gray": gray, "hist": hist}
+
+
+def scene_change_score(prev_sig, curr_sig):
+    """Blend pixel MAD and Bhattacharyya hist distance. 0 = identical, ~1 = hard cut."""
+    if prev_sig is None or curr_sig is None:
+        return 0.0
+    pixel = float(np.mean(np.abs(
+        prev_sig["gray"].astype(np.float32) - curr_sig["gray"].astype(np.float32)
+    ))) / 255.0
+    hist = float(cv2.compareHist(prev_sig["hist"], curr_sig["hist"], cv2.HISTCMP_BHATTACHARYYA))
+    return 0.45 * pixel + 0.55 * hist
+
+
+def confirm_scene_cut(score, streak, threshold=SCENE_CUT_SCORE_THRESHOLD, confirm_count=SCENE_CUT_CONFIRM_FRAMES):
+    """Hysteresis: a single flash/spike does not count as a cut."""
+    if score >= threshold:
+        streak += 1
+    else:
+        streak = 0
+    return streak >= confirm_count, streak
+
+
+def should_keep_sticky_focus(face_mode, last_faces, frames_since_success, timeout_frames, scene_cut):
+    """Keep last crop after the normal timeout only in auto mode, until a real cut."""
+    if last_faces is None or scene_cut:
+        return False
+    if frames_since_success <= timeout_frames:
+        return True
+    return face_mode == "auto"
+
+
+def max_bbox_center_distance(faces_a, faces_b):
+    if not faces_a or not faces_b or len(faces_a) != len(faces_b):
+        return float("inf")
+    farthest = 0.0
+    for old, new in zip(faces_a, faces_b):
+        oc = get_center_bbox(old)
+        nc = get_center_bbox(new)
+        farthest = max(farthest, float(np.hypot(oc[0] - nc[0], oc[1] - nc[1])))
+    return farthest
+
+
+def should_accept_face_update(prev_faces, new_faces, pending_faces, pending_hits, jump_px=STICKY_JUMP_PX, confirm_hits=STICKY_REPLACE_CONFIRM):
+    """Reject one-frame crop jumps. A large move must repeat before it replaces the crop."""
+    if not new_faces:
+        return False, None, 0
+    if prev_faces is None:
+        return True, None, 0
+    if max_bbox_center_distance(prev_faces, new_faces) <= jump_px:
+        return True, None, 0
+    if pending_faces is not None and max_bbox_center_distance(pending_faces, new_faces) <= jump_px:
+        hits = pending_hits + 1
+        if hits >= confirm_hits:
+            return True, None, 0
+        return False, pending_faces, hits
+    return False, list(new_faces), 1
+
 def generate_short_fallback(input_file, output_file, index, project_folder, final_folder, no_face_mode="padding"):
     """Fallback function: Center Crop (Zoom) or Padding if detection fails."""
     print(f"Processing (Fallback): {input_file} | Mode: {no_face_mode}")
@@ -511,6 +588,11 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
     last_frame_face_positions = None
     last_success_frame = -1000
     max_frames_without_detection = int(3.0 * fps) # 3 seconds timeout
+    prev_scene_sig = None
+    scene_cut_streak = 0
+    sticky_logged = False
+    pending_faces = None
+    pending_hits = 0
 
     transition_duration = 4 # Smooth transition over 4 frames (almost continuous)
     transition_frames = []
@@ -549,6 +631,23 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
 
         if not ret or frame is None:
             break
+
+        curr_scene_sig = build_scene_signature(frame)
+        scene_score = scene_change_score(prev_scene_sig, curr_scene_sig)
+        scene_cut, scene_cut_streak = confirm_scene_cut(scene_score, scene_cut_streak)
+        if face_mode == "auto" and scene_cut and last_detected_faces is not None:
+            print("DEBUG: Scene cut detected; clearing sticky focus")
+            last_detected_faces = None
+            last_frame_face_positions = None
+            transition_frames = []
+            last_success_frame = -1000
+            pending_faces = None
+            pending_hits = 0
+            faces_activity_state = []
+            current_num_faces_state = 1
+            sticky_logged = False
+            scene_cut_streak = 0
+        prev_scene_sig = curr_scene_sig
 
         if frame_index >= next_detection_frame and len(transition_frames) == 0:
             # Detect faces
@@ -909,6 +1008,18 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
                         transition_frames = []
                 # ---------------------------------
 
+                if face_mode == "auto":
+                    accept_update, pending_faces, pending_hits = should_accept_face_update(
+                        last_detected_faces,
+                        detections,
+                        pending_faces,
+                        pending_hits,
+                        jump_px=max(STICKY_JUMP_PX, float(dead_zone) * 2.5),
+                    )
+                    if not accept_update:
+                        detections = []
+
+            if detections:
                 if last_frame_face_positions is not None and len(last_frame_face_positions) == len(detections):
                     # Only transition if we decided to MOVE (i.e., not stable)
                     forced_transition = True
@@ -942,6 +1053,7 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
                     transition_frames = []
                 last_detected_faces = detections
                 last_success_frame = frame_index
+                sticky_logged = False
             else:
                 pass
 
@@ -966,10 +1078,20 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
             
             next_detection_frame = frame_index + step
 
+        frames_since_success = frame_index - last_success_frame
         if len(transition_frames) > 0:
             current_faces = transition_frames[0]
             transition_frames = transition_frames[1:]
-        elif last_detected_faces is not None and (frame_index - last_success_frame) <= max_frames_without_detection:
+        elif should_keep_sticky_focus(
+            face_mode,
+            last_detected_faces,
+            frames_since_success,
+            max_frames_without_detection,
+            scene_cut=False,
+        ):
+            if face_mode == "auto" and frames_since_success > max_frames_without_detection and not sticky_logged:
+                print("DEBUG: Sticky focus retained (no scene cut)")
+                sticky_logged = True
             current_faces = last_detected_faces
         else:
             # Fallback for this frame
