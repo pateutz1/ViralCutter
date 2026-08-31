@@ -3,6 +3,7 @@ api_config.json
 ui_settings.json
 .env
 .env.*
+cookies.txt
 
 # Python
 .venv/

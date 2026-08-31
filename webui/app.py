@@ -353,95 +353,137 @@ def run_viral_cutter(input_source, project_name, url, video_file, segments, vira
         html_output = f"<h3>{i18n('Error: Project folder could not be determined from logs.')}</h3>"
     yield logs, gr.update(value=i18n("Start Processing"), interactive=True), gr.update(visible=False), html_output
 
-css = """
-/* Global Dark Theme Overrides */
-body, .gradio-container {
-    background-color: #0b0b0b !important;
-    color: #ffffff !important;
-}
-
-/* Force dark background for specific inputs that might be white */
-input[type="password"], textarea, select {
-    background-color: #1f1f1f !important;
-    color: #ffffff !important;
-    border: 1px solid #333 !important;
-}
-
-/* Hide Footer */
-footer {visibility: hidden}
-
-/* Container Width */
-.gradio-container {
-    max-width: 98% !important; 
-    width: 98% !important;
-    margin: 0 auto !important;
-}
-"""
+THEME_CSS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "theme.css")
+with open(THEME_CSS_PATH, encoding="utf-8") as theme_file:
+    css = theme_file.read()
 
 import header
 
-with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_hue="orange", neutral_hue="slate"), css=css) as demo:
-    ui_state = ui_cfg.load_ui_state()
-    gr.Markdown(header.badges)
-    gr.Markdown(header.description)
+ui_state = ui_cfg.load_ui_state()
+saved_theme = ui_state.get("theme", "dark")
+if saved_theme not in ("dark", "light"):
+    saved_theme = "dark"
+
+head_script = (
+    "<script>(function(){var t=localStorage.getItem('vc-theme')||'"
+    + saved_theme
+    + "';document.documentElement.setAttribute('data-theme',t);"
+    "document.documentElement.classList.toggle('dark',t==='dark');})();</script>"
+)
+
+theme_init_js = (
+    "() => { const t = localStorage.getItem('vc-theme') || '"
+    + saved_theme
+    + "'; document.documentElement.setAttribute('data-theme', t);"
+    " document.documentElement.classList.toggle('dark', t === 'dark');"
+    " if (document.body) { document.body.setAttribute('data-theme', t);"
+    " document.body.classList.toggle('dark', t === 'dark'); } }"
+)
+
+THEME_CLICK_JS = """
+(current) => {
+  const next = current === 'light' ? 'dark' : 'light';
+  const root = document.documentElement;
+  root.setAttribute('data-theme', next);
+  root.classList.toggle('dark', next === 'dark');
+  if (document.body) {
+    document.body.setAttribute('data-theme', next);
+    document.body.classList.toggle('dark', next === 'dark');
+  }
+  document.querySelectorAll('.gradio-container').forEach((el) => {
+    el.setAttribute('data-theme', next);
+    el.classList.toggle('dark', next === 'dark');
+  });
+  localStorage.setItem('vc-theme', next);
+  return [next, next === 'light' ? 'Dark' : 'Light'];
+}
+"""
+
+vc_theme = gr.themes.Default(
+    primary_hue="teal",
+    neutral_hue="slate",
+    font=gr.themes.GoogleFont("Plus Jakarta Sans"),
+)
+
+with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=head_script, js=theme_init_js) as demo:
+    theme_state = gr.State(saved_theme)
+    with gr.Row(elem_classes=["vc-appbar-row"]):
+        gr.HTML(header.brand_html())
+        theme_btn = gr.Button(
+            "Dark" if saved_theme == "light" else "Light",
+            elem_id="vc-theme-toggle",
+            size="sm",
+            scale=0,
+        )
+    theme_btn.click(
+        fn=None,
+        inputs=[theme_state],
+        outputs=[theme_state, theme_btn],
+        js=THEME_CLICK_JS,
+    )
+    theme_state.change(
+        lambda theme: ui_cfg.save_ui_state({"theme": theme}) if theme in ("dark", "light") else None,
+        inputs=theme_state,
+        outputs=None,
+        queue=False,
+        show_progress="hidden",
+    )
     with gr.Tabs():
         with gr.Tab(i18n("Create New")):
              with gr.Row():
                 with gr.Column(scale=1):
-                    input_source = gr.Radio([(i18n("YouTube URL"), "YouTube URL"), (i18n("Existing Project"), "Existing Project"), (i18n("Upload Video"), "Upload Video")], label=i18n("Input Source"), value=ui_state.get("input_source", "YouTube URL"))
-                    
-                    url_input = gr.Textbox(label=i18n("YouTube URL"), placeholder="https://www.youtube.com/watch?v=...", visible=True)
-                    video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
-                    
-                    with gr.Row():
-                        video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=ui_state.get("video_quality", "best"))
-                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"))
-                        use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=ui_state.get("use_youtube_subs", True), info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
+                    with gr.Group(elem_classes=["vc-card"]):
+                        gr.Markdown(f"### {i18n('Video')}")
+                        input_source = gr.Radio([(i18n("YouTube URL"), "YouTube URL"), (i18n("Existing Project"), "Existing Project"), (i18n("Upload Video"), "Upload Video")], label=i18n("Input Source"), value=ui_state.get("input_source", "YouTube URL"))
+                        url_input = gr.Textbox(label=i18n("YouTube URL"), placeholder="https://www.youtube.com/watch?v=...", visible=True)
+                        video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
+                        with gr.Row():
+                            video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=ui_state.get("video_quality", "best"))
+                            use_youtube_subs_input = gr.Checkbox(label=i18n("Use YouTube Subs"), value=ui_state.get("use_youtube_subs", True), info=i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"))
+                        project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
 
-                    project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
-                    
                     def on_source_change(source):
                         if source == "YouTube URL":
-                            return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(value="Full") 
+                            return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), gr.update(value="Full")
                         elif source == "Upload Video":
                              return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), gr.update(value="Full")
                         else:
-                            # Load projects
                             projs = library.get_existing_projects()
                             return gr.update(visible=False), gr.update(choices=projs, visible=True), gr.update(visible=False), gr.update(value="Subtitles Only")
-                    
-                    
-                    with gr.Row():
-                        segments_input = gr.Number(label=i18n("Segments"), value=ui_state.get("segments", 3), precision=0)
-                        viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=ui_state.get("viral", True))
-                    themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), value=ui_state.get("themes", ""), visible=not ui_state.get("viral", True))
-                    viral_input.change(lambda x: gr.update(visible=not x), viral_input, themes_input)
-                    with gr.Row():
-                        min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=ui_state.get("min_duration", 15))
-                        max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=ui_state.get("max_duration", 90))
-                    with gr.Row():
-                        text_safe_selection_input = gr.Checkbox(
-                            label=i18n("Text Safe Selection"),
-                            value=ui_state.get("text_safe_selection", False),
-                            info=i18n("Prefer segments with fewer captions or watermarks clipped by a centered 9:16 crop."),
-                        )
-                        max_text_frame_percent_input = gr.Slider(
-                            label=i18n("Maximum Crop-Risk Text Frames (%)"),
-                            minimum=0,
-                            maximum=100,
-                            value=ui_state.get("max_text_frame_percent", 15),
-                            step=1,
-                            info=i18n("If no segment meets this limit, the lowest-risk segment is selected."),
-                        )
+
+                    with gr.Group(elem_classes=["vc-card"]):
+                        gr.Markdown(f"### {i18n('Cutting')}")
+                        with gr.Row():
+                            segments_input = gr.Number(label=i18n("Segments"), value=ui_state.get("segments", 3), precision=0)
+                            viral_input = gr.Checkbox(label=i18n("Viral Mode"), value=ui_state.get("viral", True))
+                        themes_input = gr.Textbox(label=i18n("Themes"), placeholder=i18n("funny, sad..."), value=ui_state.get("themes", ""), visible=not ui_state.get("viral", True))
+                        viral_input.change(lambda x: gr.update(visible=not x), viral_input, themes_input)
+                        with gr.Row():
+                            min_dur_input = gr.Number(label=i18n("Min Duration (s)"), value=ui_state.get("min_duration", 15))
+                            max_dur_input = gr.Number(label=i18n("Max Duration (s)"), value=ui_state.get("max_duration", 90))
+                        with gr.Row():
+                            text_safe_selection_input = gr.Checkbox(
+                                label=i18n("Text Safe Selection"),
+                                value=ui_state.get("text_safe_selection", False),
+                                info=i18n("Prefer segments with fewer captions or watermarks clipped by a centered 9:16 crop."),
+                            )
+                            max_text_frame_percent_input = gr.Slider(
+                                label=i18n("Maximum Crop-Risk Text Frames (%)"),
+                                minimum=0,
+                                maximum=100,
+                                value=ui_state.get("max_text_frame_percent", 15),
+                                step=1,
+                                info=i18n("If no segment meets this limit, the lowest-risk segment is selected."),
+                            )
                 with gr.Column(scale=1):
-                    with gr.Row():
-                        ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
-                        api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
-                    
-                    # New Dynamic Inputs
-                    with gr.Row():
-                        ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=5)
-                        chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=2)
+                    with gr.Group(elem_classes=["vc-card"]):
+                        gr.Markdown(f"### {i18n('API')}")
+                        with gr.Row():
+                            ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
+                            api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
+                        with gr.Row():
+                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=5)
+                            chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=2)
                     
                     def update_ai_ui(backend):
                         show_api = backend in ("gemini", "groq")
@@ -484,35 +526,39 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
 
                     ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input)
 
-                    model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value=ui_state.get("whisper_backend", "cloudflare"))
-                    enable_captions_input = gr.Checkbox(
-                        label=i18n("Enable Captions (Whisper)"),
-                        value=ui_state.get("enable_captions", True),
-                        info=i18n("Uncheck to skip transcription and subtitle burning (saves STT quota)."),
-                    )
-                    with gr.Row():
-                        workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value=ui_state.get("workflow", "Full"))
-                        face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value=ui_state.get("face_model", "insightface"))
-                    with gr.Row():
-                        face_mode_input = gr.Dropdown(
-                            choices=[
-                                (i18n("Auto"), "auto"),
-                                ("1", "1"),
-                                ("2", "2"),
-                                (i18n("Fixed Center (No Tracking)"), "fixed_center"),
-                            ],
-                            label=i18n("Face Mode"),
-                            value=ui_state.get("face_mode", "auto"),
+                    with gr.Group(elem_classes=["vc-card"]):
+                        gr.Markdown(f"### {i18n('Captions')}")
+                        model_input = gr.Dropdown(WHISPER_BACKENDS, label=i18n("Whisper Backend"), value=ui_state.get("whisper_backend", "cloudflare"))
+                        enable_captions_input = gr.Checkbox(
+                            label=i18n("Enable Captions (Whisper)"),
+                            value=ui_state.get("enable_captions", True),
+                            info=i18n("Uncheck to skip transcription and subtitle burning (saves STT quota)."),
                         )
-                        face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=ui_state.get("face_detect_interval", "0.17,1.0"))
-                        no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value=ui_state.get("no_face_mode", "zoom"))
-                    
-                    
-                    # Update listeners now that all components are defined
+                        translate_input = gr.Dropdown(choices=["None", "pt", "en", "es", "fr", "de", "it", "ru", "ja", "ko", "zh-CN"], label=i18n("Translate Subtitles To"), value=ui_state.get("translate_target", "None"))
+
+                    with gr.Group(elem_classes=["vc-card"]):
+                        gr.Markdown(f"### {i18n('Face / Vertical')}")
+                        with gr.Row():
+                            workflow_input = gr.Dropdown(choices=[(i18n("Full"), "Full"), (i18n("Cut Only"), "Cut Only"), (i18n("Subtitles Only"), "Subtitles Only")], label=i18n("Workflow"), value=ui_state.get("workflow", "Full"))
+                            face_model_input = gr.Dropdown(["insightface", "mediapipe"], label=i18n("Face Model"), value=ui_state.get("face_model", "insightface"))
+                        with gr.Row():
+                            face_mode_input = gr.Dropdown(
+                                choices=[
+                                    (i18n("Auto"), "auto"),
+                                    ("1", "1"),
+                                    ("2", "2"),
+                                    (i18n("Fixed Center (No Tracking)"), "fixed_center"),
+                                ],
+                                label=i18n("Face Mode"),
+                                value=ui_state.get("face_mode", "auto"),
+                            )
+                            face_detect_interval_input = gr.Textbox(label=i18n("Face Det. Interval"), value=ui_state.get("face_detect_interval", "0.17,1.0"))
+                            no_face_mode_input = gr.Dropdown(choices=[(i18n("Padding (9:16)"), "padding"), (i18n("Zoom (Center)"), "zoom")], label=i18n("No Face Fallback"), value=ui_state.get("no_face_mode", "zoom"))
+
                     input_source.change(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input])
                     demo.load(on_source_change, inputs=input_source, outputs=[url_input, project_selector, video_upload, workflow_input], queue=False, show_progress="hidden")
-             
-             with gr.Accordion(i18n("Advanced Face Settings"), open=False):
+
+             with gr.Accordion(i18n("Advanced Face Settings"), open=False, elem_classes=["vc-card"]):
                  face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("face_preset", "Default (Balanced)"), interactive=True)
                  with gr.Row():
                       face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.35), step=0.05, info=i18n("Relative size to ignore background."))
@@ -538,7 +584,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                             active_speaker_decay_input = gr.Slider(label=i18n("Switch Speed"), minimum=0.5, maximum=5.0, value=ui_state.get("active_speaker_decay", 2.0), step=0.5, info=i18n("Speed to lose focus."))
 
                         experimental_preset_input.change(apply_experimental_preset, inputs=experimental_preset_input, outputs=[focus_active_speaker_input, active_speaker_mar_input, active_speaker_score_diff_input, include_motion_input, active_speaker_motion_threshold_input, active_speaker_motion_sensitivity_input, active_speaker_decay_input])
-             with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False):
+             with gr.Accordion(i18n("Subtitle Settings (alpha)"), open=False, elem_classes=["vc-card"]):
                 preset_input = gr.Dropdown(choices=[(i18n("Manual"), "Manual")] + [(i18n(k), k) for k in subs.SUBTITLE_PRESETS.keys()], label=i18n("Quick Presets"), value=ui_state.get("subtitle_preset", "Hormozi (Classic)"))
                 use_custom_subs = gr.Checkbox(label=i18n("Enable Subtitle Customization (Includes Preset)"), value=ui_state.get("use_custom_subs", True))
                 
@@ -643,12 +689,15 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                  show_progress="hidden",
              )
 
-             with gr.Row():
-                 start_btn = gr.Button(i18n("Start Processing"), variant="primary")
-                 stop_btn = gr.Button(i18n("Stop"), variant="stop", visible=False)
-             stop_btn.click(kill_process, outputs=[])
-             logs_output = gr.Textbox(label=i18n("Logs"), lines=10, autoscroll=True, elem_id="logs_output")
-             
+             with gr.Group(elem_classes=["vc-card"]):
+                 gr.Markdown(f"### {i18n('Generate')}")
+                 with gr.Row():
+                     start_btn = gr.Button(i18n("Start Processing"), variant="primary")
+                     stop_btn = gr.Button(i18n("Stop"), variant="stop", visible=False)
+                 stop_btn.click(kill_process, outputs=[])
+                 logs_output = gr.Textbox(label=i18n("Logs"), lines=10, autoscroll=True, elem_id="logs_output")
+                 results_html = gr.HTML(label=i18n("Results"))
+
              # Force scroll to bottom via JS
              logs_output.change(fn=None, inputs=[], outputs=[], js="""
                 function() {
@@ -676,8 +725,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
                     }
                 }
              """)
-             results_html = gr.HTML(label=i18n("Results"))
-             
+
              # MUST pass all all new inputs to the run function
              start_btn.click(run_viral_cutter, inputs=[
                  input_source, project_selector, url_input, video_upload, segments_input, viral_input, themes_input, min_dur_input, max_dur_input, text_safe_selection_input, max_text_frame_percent_input,
@@ -699,36 +747,35 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
 
 
         with gr.Tab(i18n("Subtitle Editor")):
-            gr.Markdown(f"### {i18n('Edit Subtitles (Smart Mode)')}")
-            
-            with gr.Group():
-                editor_project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("editor_project"))
-                editor_refresh_btn = gr.Button(i18n("Refresh"), size="sm")
-            
-            with gr.Group():
-                editor_file_dropdown = gr.Dropdown(choices=[], label=i18n("Select Subtitle File"), interactive=True)
-                editor_load_btn = gr.Button(i18n("Load Subtitles"), variant="secondary")
+            with gr.Group(elem_classes=["vc-card"]):
+                gr.Markdown(f"### {i18n('Project')}")
+                with gr.Row():
+                    editor_project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("editor_project"), scale=4)
+                    editor_refresh_btn = gr.Button(i18n("Refresh"), size="sm", scale=1)
+                with gr.Row():
+                    editor_file_dropdown = gr.Dropdown(choices=[], label=i18n("Select Subtitle File"), interactive=True, scale=4)
+                    editor_load_btn = gr.Button(i18n("Load Subtitles"), variant="secondary", scale=1)
 
-            # Hidden state to store full path of currently loaded JSON
             current_json_path = gr.State()
 
-            # The Dataframe Editor
-            # Headers: Start, End, Text
-            subtitle_dataframe = gr.Dataframe(
-                headers=["Start", "End", "Text"],
-                datatype=["str", "str", "str"],
-                col_count=(3, "fixed"),
-                interactive=True,
-                label=i18n("Subtitle Segments"),
-                wrap=True
-            )
+            with gr.Group(elem_classes=["vc-card"]):
+                gr.Markdown(f"### {i18n('Segments')}")
+                subtitle_dataframe = gr.Dataframe(
+                    headers=["Start", "End", "Text"],
+                    datatype=["str", "str", "str"],
+                    col_count=(3, "fixed"),
+                    interactive=True,
+                    label=i18n("Subtitle Segments"),
+                    wrap=True
+                )
 
-            with gr.Row():
-                editor_save_btn = gr.Button(i18n("💾 Save Changes"), variant="primary")
-                editor_render_single_btn = gr.Button(i18n("⚡ Render This Segment (Very-Fast)"), variant="secondary")
-                editor_render_all_btn = gr.Button(i18n("🎬 Render All (Fast)"), variant="stop")
-            
-            editor_status = gr.Textbox(label=i18n("Status"), interactive=False)
+            with gr.Group(elem_classes=["vc-card"]):
+                gr.Markdown(f"### {i18n('Actions')}")
+                with gr.Row():
+                    editor_save_btn = gr.Button(i18n("Save Changes"), variant="primary")
+                    editor_render_single_btn = gr.Button(i18n("Render This Segment"), variant="secondary")
+                    editor_render_all_btn = gr.Button(i18n("Render All"), variant="stop")
+                editor_status = gr.Textbox(label=i18n("Status"), interactive=False)
 
             # --- Callbacks for Editor ---
             editor_refresh_btn.click(library.refresh_projects, outputs=editor_project_dropdown)
@@ -871,11 +918,14 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
 
 
         with gr.Tab(i18n("Library")):
-            gr.Markdown(f"### {i18n('Existing Projects')}")
-            with gr.Row():
-                project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("library_project"))
-                refresh_btn = gr.Button(i18n("Refresh List"))
-            project_gallery_html = gr.HTML()
+            with gr.Group(elem_classes=["vc-card"]):
+                gr.Markdown(f"### {i18n('Projects')}")
+                with gr.Row():
+                    project_dropdown = gr.Dropdown(choices=library.get_existing_projects(), label=i18n("Select Project"), value=ui_state.get("library_project"), scale=4)
+                    refresh_btn = gr.Button(i18n("Refresh List"), scale=1)
+            with gr.Group(elem_classes=["vc-card"]):
+                gr.Markdown(f"### {i18n('Gallery')}")
+                project_gallery_html = gr.HTML()
             refresh_btn.click(library.refresh_projects, outputs=project_dropdown)
             def on_select_project(proj_name): return library.generate_project_gallery(proj_name)
             project_dropdown.change(on_select_project, project_dropdown, project_gallery_html)
@@ -889,17 +939,9 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=gr.themes.Default(primary_
             if ui_state.get("library_project"):
                 demo.load(on_select_project, inputs=project_dropdown, outputs=project_gallery_html, queue=False, show_progress="hidden")
     
-    gr.Markdown(f"""
-        <hr>
-        <div style='text-align: center; font-size: 0.9em; color: #777;'>
-            <p>
-                <strong>{i18n('Developed by Rafael Godoy')}</strong>
-                <br>
-                {i18n('Support the project, any amount is welcome:')} 
-                <a href='https://nubank.com.br/pagar/1ls6a4/0QpSSbWBSq' target='_blank'><strong>{i18n('Support via PIX')}</strong></a>
-                <br>
-                {i18n('100% local • open source • no subscription required')} 
-            </p>
+    gr.Markdown("""
+        <div class="vc-footer">
+            100% local · open source · no subscription required
         </div>
         """)
 if __name__ == "__main__":
@@ -985,7 +1027,11 @@ if __name__ == "__main__":
                 inbrowser=True,
                 server_name="0.0.0.0",
                 server_port=7860,
-                prevent_thread_lock=True
+                prevent_thread_lock=True,
+                theme=vc_theme,
+                css=css,
+                head=head_script,
+                js=theme_init_js,
             )
             attach_extra_routes(app)
             demo.block_thread()
@@ -995,5 +1041,15 @@ if __name__ == "__main__":
             app = FastAPI()
             attach_extra_routes(app)
             # Disable SSR to prevent Node proxying issues on HF Spaces
-            app = gr.mount_gradio_app(app, demo.queue(), path="/", allowed_paths=allowed_dirs, ssr_mode=False)
+            app = gr.mount_gradio_app(
+                app,
+                demo.queue(),
+                path="/",
+                allowed_paths=allowed_dirs,
+                ssr_mode=False,
+                theme=vc_theme,
+                css=css,
+                head=head_script,
+                js=theme_init_js,
+            )
             uvicorn.run(app, host="0.0.0.0", port=7860)

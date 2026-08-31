@@ -106,12 +106,18 @@ def sort_by_proximity(new_faces, old_faces, center_func):
     
     return new_faces
 
-# Sticky-focus / scene-cut internals (InsightFace auto only). No UI knobs.
+# Sticky-focus / scene-cut internals (InsightFace auto and 1-face). No UI knobs.
 SCENE_SIGNATURE_SIZE = (64, 36)
-SCENE_CUT_SCORE_THRESHOLD = 0.36
-SCENE_CUT_CONFIRM_FRAMES = 2
-STICKY_JUMP_PX = 150.0
+SCENE_CUT_CANDIDATE_THRESHOLD = 0.45
+SCENE_CUT_SAME_THRESHOLD = 0.22
+SCENE_CUT_COOLDOWN_FRAMES = 10
+STICKY_JUMP_PX = 165.0
 STICKY_REPLACE_CONFIRM = 2
+MIN_FACE_REL_HEIGHT = 0.05
+
+
+def uses_sticky_focus(face_mode):
+    return face_mode in ("auto", "1")
 
 
 def build_scene_signature(frame, size=SCENE_SIGNATURE_SIZE):
@@ -129,32 +135,108 @@ def build_scene_signature(frame, size=SCENE_SIGNATURE_SIZE):
 
 
 def scene_change_score(prev_sig, curr_sig):
-    """Blend pixel MAD and Bhattacharyya hist distance. 0 = identical, ~1 = hard cut."""
+    """Histogram-first distance. 0 = identical, ~1 = hard cut. MAD is a light tie-break only."""
     if prev_sig is None or curr_sig is None:
         return 0.0
+    hist = float(cv2.compareHist(prev_sig["hist"], curr_sig["hist"], cv2.HISTCMP_BHATTACHARYYA))
     pixel = float(np.mean(np.abs(
         prev_sig["gray"].astype(np.float32) - curr_sig["gray"].astype(np.float32)
     ))) / 255.0
-    hist = float(cv2.compareHist(prev_sig["hist"], curr_sig["hist"], cv2.HISTCMP_BHATTACHARYYA))
-    return 0.45 * pixel + 0.55 * hist
+    return 0.85 * hist + 0.15 * pixel
 
 
-def confirm_scene_cut(score, streak, threshold=SCENE_CUT_SCORE_THRESHOLD, confirm_count=SCENE_CUT_CONFIRM_FRAMES):
-    """Hysteresis: a single flash/spike does not count as a cut."""
-    if score >= threshold:
-        streak += 1
-    else:
-        streak = 0
-    return streak >= confirm_count, streak
+class SceneCutTracker:
+    """Confirm a cut only when a new scene stays stable and stays unlike the pre-cut scene."""
+
+    def __init__(
+        self,
+        candidate_threshold=SCENE_CUT_CANDIDATE_THRESHOLD,
+        same_threshold=SCENE_CUT_SAME_THRESHOLD,
+        cooldown_frames=SCENE_CUT_COOLDOWN_FRAMES,
+    ):
+        self.candidate_threshold = candidate_threshold
+        self.same_threshold = same_threshold
+        self.cooldown_frames = cooldown_frames
+        self.stable = None
+        self.pre_cut = None
+        self.candidate = None
+        self.cooldown = 0
+
+    def reset_candidate(self):
+        self.pre_cut = None
+        self.candidate = None
+
+    def update(self, sig):
+        if sig is None:
+            return False
+
+        if self.cooldown > 0:
+            self.cooldown -= 1
+            if self.stable is None or scene_change_score(self.stable, sig) < self.same_threshold:
+                self.stable = sig
+            return False
+
+        if self.stable is None:
+            self.stable = sig
+            return False
+
+        if self.candidate is None:
+            score = scene_change_score(self.stable, sig)
+            if score >= self.candidate_threshold:
+                self.pre_cut = self.stable
+                self.candidate = sig
+                return False
+            self.stable = sig
+            return False
+
+        vs_new = scene_change_score(self.candidate, sig)
+        vs_old = scene_change_score(self.pre_cut, sig)
+        if vs_new < self.same_threshold and vs_old >= self.candidate_threshold:
+            self.stable = sig
+            self.reset_candidate()
+            self.cooldown = self.cooldown_frames
+            return True
+        if vs_old < self.same_threshold:
+            self.stable = self.pre_cut
+        else:
+            self.stable = sig
+        self.reset_candidate()
+        return False
+
+
+def prepare_insightface_faces(faces, confidence_threshold, filter_threshold, frame_height=None):
+    """Shared confidence + size filter for the main detector and lookahead."""
+    if not faces:
+        return []
+    prepared = []
+    min_height = 0.0
+    if frame_height:
+        min_height = float(frame_height) * MIN_FACE_REL_HEIGHT
+    for face in faces:
+        if face.get("det_score", 0) <= confidence_threshold:
+            continue
+        width = face["bbox"][2] - face["bbox"][0]
+        height = face["bbox"][3] - face["bbox"][1]
+        if min_height and height < min_height:
+            continue
+        face["area"] = width * height
+        face["center"] = ((face["bbox"][0] + face["bbox"][2]) / 2, (face["bbox"][1] + face["bbox"][3]) / 2)
+        activity = face.get("activity", 0)
+        face["effective_area"] = face["area"] * (1.0 + (activity * 0.05))
+        prepared.append(face)
+    if not prepared:
+        return []
+    max_area = max(face["area"] for face in prepared)
+    return [face for face in prepared if face["area"] > (filter_threshold * max_area)]
 
 
 def should_keep_sticky_focus(face_mode, last_faces, frames_since_success, timeout_frames, scene_cut):
-    """Keep last crop after the normal timeout only in auto mode, until a real cut."""
+    """Keep last crop after the normal timeout in auto/1-face, until a real cut."""
     if last_faces is None or scene_cut:
         return False
     if frames_since_success <= timeout_frames:
         return True
-    return face_mode == "auto"
+    return uses_sticky_focus(face_mode)
 
 
 def max_bbox_center_distance(faces_a, faces_b):
@@ -588,8 +670,7 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
     last_frame_face_positions = None
     last_success_frame = -1000
     max_frames_without_detection = int(3.0 * fps) # 3 seconds timeout
-    prev_scene_sig = None
-    scene_cut_streak = 0
+    scene_tracker = SceneCutTracker()
     sticky_logged = False
     pending_faces = None
     pending_hits = 0
@@ -632,22 +713,19 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
         if not ret or frame is None:
             break
 
-        curr_scene_sig = build_scene_signature(frame)
-        scene_score = scene_change_score(prev_scene_sig, curr_scene_sig)
-        scene_cut, scene_cut_streak = confirm_scene_cut(scene_score, scene_cut_streak)
-        if face_mode == "auto" and scene_cut and last_detected_faces is not None:
-            print("DEBUG: Scene cut detected; clearing sticky focus")
-            last_detected_faces = None
-            last_frame_face_positions = None
-            transition_frames = []
-            last_success_frame = -1000
-            pending_faces = None
-            pending_hits = 0
-            faces_activity_state = []
-            current_num_faces_state = 1
-            sticky_logged = False
-            scene_cut_streak = 0
-        prev_scene_sig = curr_scene_sig
+        if uses_sticky_focus(face_mode):
+            scene_cut = scene_tracker.update(build_scene_signature(frame))
+            if scene_cut and last_detected_faces is not None:
+                print("DEBUG: Scene cut detected; clearing sticky focus")
+                last_detected_faces = None
+                last_frame_face_positions = None
+                transition_frames = []
+                last_success_frame = -1000
+                pending_faces = None
+                pending_hits = 0
+                faces_activity_state = []
+                current_num_faces_state = 1
+                sticky_logged = False
 
         if frame_index >= next_detection_frame and len(transition_frames) == 0:
             # Detect faces
@@ -664,32 +742,12 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
             # ------------------------------------
 
             # --- INTELLIGENT FILTERING ---
-            valid_faces = []
-            if faces:
-                # 1. Filter by confidence (Using user threshold)
-                faces = [f for f in faces if f.get('det_score', 0) > confidence_threshold]
-                
-                if faces:
-                    # Pre-calculate areas and SPEAKER SCORE
-                    for f in faces:
-                        w = f['bbox'][2] - f['bbox'][0]
-                        h = f['bbox'][3] - f['bbox'][1]
-                        f['area'] = w * h
-                        f['center'] = ((f['bbox'][0] + f['bbox'][2]) / 2, (f['bbox'][1] + f['bbox'][3]) / 2)
-                        
-                        act = f.get('activity', 0)
-                        f['effective_area'] = f['area'] * (1.0 + (act * 0.05))
-
-                    # Find largest face
-                    max_area = max(f['area'] for f in faces)
-                    
-                    # 2. Relative Size Filter
-                    valid_faces = [f for f in faces if f['area'] > (filter_threshold * max_area)]
-                    
-                    if len(valid_faces) < len(faces):
-                        print(f"DEBUG: Filtered {len(faces)-len(valid_faces)} small faces. Max Area: {max_area}. Filter Thresh: {filter_threshold}")
-                    
-                    faces = valid_faces
+            valid_faces = prepare_insightface_faces(
+                faces, confidence_threshold, filter_threshold, frame_height=frame_height,
+            )
+            if faces and valid_faces and len(valid_faces) < len(faces):
+                print(f"DEBUG: Filtered {len(faces)-len(valid_faces)} faces. Filter Thresh: {filter_threshold}")
+            faces = valid_faces
             
             # --- ACTIVE SPEAKER UPDATE ---
             if faces:
@@ -896,23 +954,9 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
                 ret2, frame2 = cap.read()
                 if ret2 and frame2 is not None:
                      faces2 = detect_faces_insightface(frame2)
-                     
-                     # --- Apply same filtering to lookahead ---
-                     valid_faces2 = []
-                     if faces2:
-                         faces2 = [f for f in faces2 if f.get('det_score', 0) > 0.50]
-                         if faces2:
-                             for f in faces2:
-                                 w = f['bbox'][2] - f['bbox'][0]
-                                 h = f['bbox'][3] - f['bbox'][1]
-                                 f['area'] = w * h
-                                 f['center'] = ((f['bbox'][0] + f['bbox'][2]) / 2, (f['bbox'][1] + f['bbox'][3]) / 2)
-                                 f['effective_area'] = f['area'] # Default for lookahead
-                             max_area2 = max(f['area'] for f in faces2)
-                             # STRICTER FILTER: threshold of max area
-                             valid_faces2 = [f for f in faces2 if f['area'] > (filter_threshold * max_area2)]
-                     faces2 = valid_faces2
-                     # ----------------------------------------
+                     faces2 = prepare_insightface_faces(
+                         faces2, confidence_threshold, filter_threshold, frame_height=frame_height,
+                     )
 
 
                      # If lookahead found what we wanted OR found something better than nothing
@@ -1008,13 +1052,13 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
                         transition_frames = []
                 # ---------------------------------
 
-                if face_mode == "auto":
+                if uses_sticky_focus(face_mode):
                     accept_update, pending_faces, pending_hits = should_accept_face_update(
                         last_detected_faces,
                         detections,
                         pending_faces,
                         pending_hits,
-                        jump_px=max(STICKY_JUMP_PX, float(dead_zone) * 2.5),
+                        jump_px=STICKY_JUMP_PX,
                     )
                     if not accept_update:
                         detections = []
@@ -1089,7 +1133,7 @@ def generate_short_insightface(input_file, output_file, index, project_folder, f
             max_frames_without_detection,
             scene_cut=False,
         ):
-            if face_mode == "auto" and frames_since_success > max_frames_without_detection and not sticky_logged:
+            if uses_sticky_focus(face_mode) and frames_since_success > max_frames_without_detection and not sticky_logged:
                 print("DEBUG: Sticky focus retained (no scene cut)")
                 sticky_logged = True
             current_faces = last_detected_faces

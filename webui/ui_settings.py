@@ -65,6 +65,7 @@ DEFAULT_UI_SETTINGS = {
     "w_block": 3,
     "editor_project": None,
     "library_project": None,
+    "theme": "dark",
 }
 
 

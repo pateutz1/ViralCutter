@@ -45,6 +45,28 @@ def _detect_js_runtimes():
     return runtimes
 
 
+def _project_root():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _resolve_cookie_opts():
+    """Cookies file (preferred) or browser export via YTDLP_COOKIES_FROM_BROWSER."""
+    cookie_file = (os.environ.get("YTDLP_COOKIES_FILE") or "").strip()
+    if not cookie_file:
+        default = os.path.join(_project_root(), "cookies.txt")
+        if os.path.isfile(default):
+            cookie_file = default
+    if cookie_file and os.path.isfile(cookie_file):
+        print(f"[yt-dlp] Using cookies file: {cookie_file}")
+        return {"cookiefile": cookie_file}
+
+    browser = (os.environ.get("YTDLP_COOKIES_FROM_BROWSER") or "").strip().lower()
+    if browser in ("chrome", "edge", "firefox", "brave", "opera", "chromium"):
+        print(f"[yt-dlp] Using cookies from browser: {browser}")
+        return {"cookiesfrombrowser": (browser,)}
+    return {}
+
+
 def _base_ydl_opts(**extra):
     """Shared yt-dlp options: JS runtime + EJS remote components, no Chrome cookie lock."""
     opts = {
@@ -126,27 +148,27 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
     else:
         print("[yt-dlp] WARNING: No Node/Deno found. Install Node.js 20+ for full YouTube format support.")
 
-    # Optional cookies: only if YTDLP_COOKIES_FROM_BROWSER is set (chrome|edge|firefox).
-    # Default skips browser cookies — Chrome DB copy fails on Windows when Chrome is open.
-    browser = (os.environ.get("YTDLP_COOKIES_FROM_BROWSER") or "").strip().lower()
-    if browser in ("chrome", "edge", "firefox", "brave", "opera", "chromium"):
-        try:
-            with yt_dlp.YoutubeDL(_base_ydl_opts(cookiesfrombrowser=(browser,))) as ydl:
-                info = ydl.extract_info(url, download=False)
-                title = info.get("title")
-        except Exception as e:
+    cookie_opts = _resolve_cookie_opts()
+    try:
+        with yt_dlp.YoutubeDL(_base_ydl_opts(**cookie_opts)) as ydl:
+            info = ydl.extract_info(url, download=False)
+            title = info.get("title")
+    except Exception as e:
+        if cookie_opts:
             try:
                 print(i18n("Warning: Failed to extract info with cookies: {}").format(e))
             except UnicodeEncodeError:
                 print(i18n("Warning: Failed to extract info with cookies: [Encoding Error in Message]"))
-
-    # Default / fallback: no browser cookies
-    if not title:
-        try:
-            with yt_dlp.YoutubeDL(_base_ydl_opts()) as ydl:
-                info = ydl.extract_info(url, download=False)
-                title = info.get("title")
-        except Exception as e:
+            try:
+                with yt_dlp.YoutubeDL(_base_ydl_opts()) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    title = info.get("title")
+            except Exception as e2:
+                try:
+                    print(i18n("Error getting video info (without cookies): {}").format(e2))
+                except UnicodeEncodeError:
+                    print(i18n("Error getting video info (without cookies): [Encoding Error in Message]"))
+        else:
             try:
                 print(i18n("Error getting video info (without cookies): {}").format(e))
             except UnicodeEncodeError:
@@ -222,9 +244,7 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         quiet=False,
         no_warnings=True,
     )
-    if browser in ("chrome", "edge", "firefox", "brave", "opera", "chromium"):
-        ydl_opts["cookiesfrombrowser"] = (browser,)
-    
+    ydl_opts.update(cookie_opts)
 
     
     if download_subs:
