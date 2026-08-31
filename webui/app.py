@@ -453,22 +453,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
             elem_classes=["vc-nav-item"],
         )
 
-    def _workspace_nav_js(tab_index):
-        return f"""
-() => {{
-  const nativeTabs = Array.from(document.querySelectorAll('#vc-main-tabs button[role="tab"]'));
-  nativeTabs[{tab_index}]?.click();
-  const navButtons = Array.from(document.querySelectorAll('#vc-workspace-nav button'));
-  navButtons.forEach((button, index) => button.classList.toggle('vc-nav-active', index === {tab_index}));
-}}
-"""
-
-    nav_create_btn.click(fn=None, js=_workspace_nav_js(0), queue=False, show_progress="hidden")
-    nav_editor_btn.click(fn=None, js=_workspace_nav_js(1), queue=False, show_progress="hidden")
-    nav_library_btn.click(fn=None, js=_workspace_nav_js(2), queue=False, show_progress="hidden")
-
-    with gr.Tabs(elem_id="vc-main-tabs"):
-        with gr.Tab(i18n("Create New")):
+    with gr.Tabs(selected="create", elem_id="vc-main-tabs") as main_tabs:
+        with gr.Tab(i18n("Create New"), id="create"):
              gr.HTML("""
 <section class="vc-workspace-heading" id="vc-workspace">
   <div>
@@ -868,7 +854,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
              ], outputs=[logs_output, start_btn, stop_btn, results_html])
 
 
-        with gr.Tab(i18n("Subtitle Editor")):
+        with gr.Tab(i18n("Subtitle Editor"), id="editor"):
             with gr.Group(elem_classes=["vc-card"]):
                 gr.Markdown(f"### {i18n('Project')}")
                 with gr.Row():
@@ -1039,7 +1025,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
             )
 
 
-        with gr.Tab(i18n("Library")):
+        with gr.Tab(i18n("Library"), id="library"):
             with gr.Group(elem_classes=["vc-card"]):
                 gr.Markdown(f"### {i18n('Projects')}")
                 with gr.Row():
@@ -1060,6 +1046,39 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
             )
             if ui_state.get("library_project"):
                 demo.load(on_select_project, inputs=project_dropdown, outputs=project_gallery_html, queue=False, show_progress="hidden")
+
+    def select_workspace_tab(tab_id):
+        return gr.Tabs(selected=tab_id)
+
+    def workspace_nav_js(tab_index):
+        return f"""
+() => {{
+  const navButtons = Array.from(document.querySelectorAll('#vc-workspace-nav button'));
+  navButtons.forEach((button, index) => button.classList.toggle('vc-nav-active', index === {tab_index}));
+}}
+"""
+
+    nav_create_btn.click(
+        fn=lambda: select_workspace_tab("create"),
+        outputs=main_tabs,
+        js=workspace_nav_js(0),
+        queue=False,
+        show_progress="hidden",
+    )
+    nav_editor_btn.click(
+        fn=lambda: select_workspace_tab("editor"),
+        outputs=main_tabs,
+        js=workspace_nav_js(1),
+        queue=False,
+        show_progress="hidden",
+    )
+    nav_library_btn.click(
+        fn=lambda: select_workspace_tab("library"),
+        outputs=main_tabs,
+        js=workspace_nav_js(2),
+        queue=False,
+        show_progress="hidden",
+    )
     
     gr.Markdown("""
         <div class="vc-footer">

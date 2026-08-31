@@ -271,7 +271,15 @@ footer { display: none !important; }
 }
 
 #vc-main-tabs [role="tablist"],
-#vc-main-tabs > .tab-nav {
+#vc-main-tabs > .tab-nav,
+#vc-main-tabs > button,
+#vc-main-tabs button[aria-haspopup="menu"],
+#vc-main-tabs button[aria-label*="more" i],
+#vc-main-tabs .tabitem button[role="tab"],
+#vc-main-tabs button[id*="tab"],
+#vc-main-tabs .tabs > div:first-child,
+#vc-main-tabs > div > div:first-child:has(button[role="tab"]),
+.tab-nav {
     display: none !important;
 }
 
@@ -470,7 +478,6 @@ button#vc-nav-library::before {
         linear-gradient(145deg, rgba(255,255,255,.025), transparent 32%),
         var(--vc-card) !important;
     box-shadow: var(--vc-shadow-soft) !important;
-    transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
 }
 
 /* Gradio mirrors component classes on an inner wrapper. Collapse that
@@ -486,10 +493,6 @@ button#vc-nav-library::before {
 
 .gradio-container .vc-card .vc-card::before { display: none !important; }
 
-.gradio-container .vc-card:hover {
-    border-color: var(--vc-border-strong) !important;
-    box-shadow: var(--vc-shadow) !important;
-}
 
 .gradio-container .vc-card::before {
     content: "";
