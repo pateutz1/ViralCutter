@@ -448,7 +448,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
   <div class="vc-workspace-meta"><span>01</span><small>Configure</small></div>
 </section>
 """)
-             with gr.Row(equal_height=True, elem_classes=["vc-core-grid"]):
+             with gr.Row(equal_height=False, elem_classes=["vc-core-grid"]):
                 with gr.Column(scale=1, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-video"]):
                         gr.Markdown(f"### {i18n('Video')}")
@@ -458,7 +458,12 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             value=ui_state.get("input_source", "YouTube URL"),
                             elem_id="vc-input-source",
                         )
-                        url_input = gr.Textbox(label=i18n("YouTube URL"), placeholder="https://www.youtube.com/watch?v=...", visible=True)
+                        url_input = gr.Textbox(
+                            label=i18n("YouTube URL"),
+                            placeholder="https://www.youtube.com/watch?v=...",
+                            visible=True,
+                            elem_id="vc-youtube-url",
+                        )
                         video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
                         with gr.Row():
                             video_quality_input = gr.Dropdown(choices=["best", "1080p", "720p", "480p"], label=i18n("Video Quality"), value=ui_state.get("video_quality", "best"))
@@ -527,8 +532,8 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
              gr.HTML("""
 <div class="vc-section-divider"><span>02</span><div><strong>Processing</strong><small>Choose how clips are detected, framed, and transcribed.</small></div></div>
 """)
-             with gr.Row(equal_height=True, elem_classes=["vc-core-grid"]):
-                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+             with gr.Row(equal_height=False, elem_classes=["vc-core-grid", "vc-processing-grid"]):
+                with gr.Column(scale=3, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-cutting"]):
                         gr.Markdown(f"### {i18n('Cutting')}")
                         generation_profile_input = gr.Dropdown(
@@ -556,7 +561,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             value=ui_state.get("max_text_frame_percent", 15),
                             step=1,
                         )
-                with gr.Column(scale=1, elem_classes=["vc-stack"]):
+                with gr.Column(scale=2, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-captions"]):
                         gr.Markdown(f"### {i18n('Captions')}")
                         with gr.Row():

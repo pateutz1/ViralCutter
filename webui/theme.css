@@ -162,11 +162,27 @@ footer { display: none !important; }
     background: var(--vc-primary);
     color: var(--vc-primary-text) !important;
     font-weight: 700;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    clip-path: inset(50%);
     transform: translateY(-160%);
-    transition: transform 180ms ease;
+    transition: transform 180ms ease, opacity 180ms ease;
 }
 
-.vc-skip-link:focus { transform: translateY(0); }
+.vc-skip-link:focus {
+    width: auto;
+    height: auto;
+    padding: 10px 14px;
+    overflow: visible;
+    opacity: 1;
+    pointer-events: auto;
+    clip-path: none;
+    transform: translateY(0);
+}
 
 .vc-appbar-row {
     align-items: center !important;
@@ -258,31 +274,55 @@ footer { display: none !important; }
 #vc-main-tabs > div:first-child {
     display: inline-flex !important;
     width: auto !important;
-    gap: 4px !important;
+    gap: 5px !important;
     margin: 0 0 34px 4px !important;
-    padding: 4px !important;
-    border: 1px solid var(--vc-border) !important;
-    border-radius: 11px !important;
-    background: color-mix(in srgb, var(--vc-panel) 80%, transparent) !important;
+    padding: 5px !important;
+    border: 1px solid var(--vc-border-strong) !important;
+    border-radius: 13px !important;
+    background: color-mix(in srgb, var(--vc-panel) 88%, transparent) !important;
+    box-shadow: 0 10px 28px rgba(0, 6, 15, .16), inset 0 1px 0 rgba(255,255,255,.035) !important;
+    backdrop-filter: blur(14px);
 }
 
-.gradio-container button[role="tab"] {
-    min-width: 112px;
-    min-height: 36px !important;
-    padding: 7px 15px !important;
-    border: 0 !important;
-    border-radius: 8px !important;
+#vc-main-tabs button[role="tab"] {
+    position: relative;
+    min-width: 124px;
+    min-height: 40px !important;
+    padding: 8px 18px !important;
+    border: 1px solid transparent !important;
+    border-radius: 9px !important;
     background: transparent !important;
     color: var(--vc-text-muted) !important;
-    font-size: 0.76rem !important;
-    font-weight: 700 !important;
-    transition: color 180ms ease, background 180ms ease, transform 180ms ease !important;
+    font-size: 0.78rem !important;
+    font-weight: 750 !important;
+    letter-spacing: -0.015em;
+    transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease !important;
 }
 
-.gradio-container button[role="tab"][aria-selected="true"] {
-    background: var(--vc-card-raised) !important;
-    color: var(--vc-text) !important;
-    box-shadow: 0 3px 10px rgba(0, 6, 15, 0.16), inset 0 1px 0 rgba(255,255,255,.05) !important;
+#vc-main-tabs button[role="tab"]:hover {
+    border-color: var(--vc-border) !important;
+    background: var(--vc-card) !important;
+    color: var(--vc-text-secondary) !important;
+}
+
+#vc-main-tabs button[role="tab"][aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--vc-primary) 34%, var(--vc-border)) !important;
+    background: linear-gradient(180deg, var(--vc-card-raised), color-mix(in srgb, var(--vc-card-raised) 82%, var(--vc-accent-soft))) !important;
+    color: var(--vc-primary) !important;
+    box-shadow: 0 5px 14px rgba(0, 6, 15, 0.2), inset 0 1px 0 rgba(255,255,255,.065) !important;
+}
+
+#vc-main-tabs button[role="tab"][aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--vc-primary);
+    box-shadow: 0 0 10px var(--vc-accent-glow);
+    transform: translateX(-50%);
 }
 
 .vc-workspace-heading {
@@ -350,10 +390,11 @@ footer { display: none !important; }
 .gradio-container .row { gap: 18px !important; align-items: start !important; }
 .gradio-container .vc-core-grid { align-items: stretch !important; }
 .gradio-container .vc-stack { min-width: 0 !important; }
+.gradio-container .vc-processing-grid { align-items: start !important; }
 
 .gradio-container .vc-card {
     position: relative;
-    height: 100%;
+    height: auto;
     margin-bottom: 18px !important;
     padding: 22px 22px 14px !important;
     overflow: hidden;
@@ -365,6 +406,19 @@ footer { display: none !important; }
     box-shadow: var(--vc-shadow-soft) !important;
     transition: border-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
 }
+
+/* Gradio mirrors component classes on an inner wrapper. Collapse that
+   duplicate layer so each section reads as one intentional surface. */
+.gradio-container .vc-card .vc-card {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.gradio-container .vc-card .vc-card::before { display: none !important; }
 
 .gradio-container .vc-card:hover {
     border-color: var(--vc-border-strong) !important;
@@ -400,7 +454,7 @@ footer { display: none !important; }
     padding: 2px 0 13px !important;
     border-bottom: 1px solid var(--vc-border);
     color: var(--vc-text) !important;
-    font-size: 0.78rem !important;
+    font-size: 0.84rem !important;
     font-weight: 800 !important;
     letter-spacing: 0.04em;
     text-transform: none;
@@ -421,32 +475,33 @@ footer { display: none !important; }
     position: static !important;
     margin: 0 0 7px !important;
     padding: 0 !important;
-    font-size: 0.67rem !important;
+    font-size: 0.7rem !important;
     font-weight: 700 !important;
     letter-spacing: 0.025em;
     line-height: 1.35;
 }
 
-.gradio-container input:not([type="checkbox"]):not([type="radio"]),
+.gradio-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 .gradio-container textarea,
 .gradio-container select,
 .gradio-container input[type="password"],
 .gradio-container .wrap-inner {
-    min-height: 44px !important;
+    min-height: 40px !important;
     border: 1px solid var(--vc-border) !important;
     border-radius: var(--vc-radius-sm) !important;
     background: var(--vc-panel) !important;
     color: var(--vc-text) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.025) !important;
+    box-shadow: none !important;
     transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease !important;
+    font-size: 0.78rem !important;
 }
 
-.gradio-container input:not([type="checkbox"]):not([type="radio"]):hover,
+.gradio-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
 .gradio-container textarea:hover,
 .gradio-container select:hover,
 .gradio-container .wrap-inner:hover { border-color: var(--vc-border-strong) !important; }
 
-.gradio-container input:not([type="checkbox"]):not([type="radio"]):focus,
+.gradio-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
 .gradio-container textarea:focus,
 .gradio-container select:focus,
 .gradio-container .wrap-inner:focus-within {
@@ -455,11 +510,17 @@ footer { display: none !important; }
     outline: none !important;
 }
 
-.gradio-container .wrap-inner { display: flex !important; align-items: center !important; }
+.gradio-container .wrap-inner {
+    display: flex !important;
+    align-items: center !important;
+    border-color: var(--vc-border-strong) !important;
+    outline: 0 !important;
+}
+.gradio-container .wrap-inner > * { border: 0 !important; box-shadow: none !important; }
 .gradio-container .secondary-wrap { display: flex !important; flex: 1 1 auto !important; justify-content: center !important; width: 100% !important; text-align: center !important; }
 .gradio-container input[role="combobox"],
 .gradio-container input.border-none,
-.gradio-container .wrap-inner input:not([type="checkbox"]):not([type="radio"]) {
+.gradio-container .wrap-inner input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
     min-height: 0 !important;
     width: 100% !important;
     padding: 0 !important;
@@ -473,7 +534,7 @@ footer { display: none !important; }
 .gradio-container .wrap-inner .tokens { justify-content: center !important; width: 100% !important; text-align: center !important; }
 
 .gradio-container button {
-    min-height: 42px !important;
+    min-height: 40px !important;
     border-radius: 10px !important;
     font-weight: 750 !important;
     letter-spacing: -0.01em;
@@ -527,8 +588,8 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     align-items: center !important;
     gap: 9px !important;
     width: 100% !important;
-    height: 44px !important;
-    min-height: 44px !important;
+    height: 40px !important;
+    min-height: 40px !important;
     padding: 0 12px !important;
     border: 1px solid var(--vc-border) !important;
     border-radius: var(--vc-radius-sm) !important;
@@ -575,6 +636,14 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 #vc-input-source .wrap { display: flex !important; flex-flow: row nowrap !important; gap: 7px !important; width: 100% !important; }
 #vc-input-source label[data-testid$="-radio-label"] { flex: 1 1 0 !important; justify-content: center !important; min-width: 0 !important; min-height: 38px !important; padding: 0 7px !important; white-space: nowrap !important; }
 
+#vc-youtube-url {
+    margin-top: 11px !important;
+}
+
+#vc-youtube-url span[data-testid="block-info"] {
+    margin-bottom: 8px !important;
+}
+
 .gradio-container .accordion,
 .gradio-container .label-wrap { color: var(--vc-text) !important; }
 
@@ -586,23 +655,131 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     box-shadow: var(--vc-shadow-soft) !important;
 }
 
-.gradio-container .accordion > .label-wrap {
-    min-height: 56px;
-    padding: 0 18px !important;
+.gradio-container .accordion > .label-wrap,
+.gradio-container .vc-advanced-card .label-wrap:first-child {
+    min-height: 52px;
+    padding: 0 20px !important;
     border-radius: var(--vc-radius-lg) !important;
     background: transparent !important;
     font-size: .78rem !important;
     font-weight: 750 !important;
 }
 
+.gradio-container .vc-advanced-card .label-wrap {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    font-size: .78rem !important;
+}
+
 .gradio-container .accordion > .label-wrap:hover { background: var(--vc-accent-soft) !important; }
-.gradio-container .vc-advanced-card { height: auto; padding: 8px 10px 10px !important; }
-.gradio-container .vc-advanced-card::before { left: 22px; }
+.gradio-container .vc-advanced-card { height: auto; padding: 0 !important; overflow: visible !important; }
+.gradio-container .vc-advanced-card::before { display: none; }
+.gradio-container .vc-advanced-card > .label-wrap { border-bottom: 1px solid transparent !important; }
+.gradio-container .vc-advanced-card[open] > .label-wrap,
+.gradio-container .vc-advanced-card:has(> .label-wrap[aria-expanded="true"]) > .label-wrap { border-bottom-color: var(--vc-border) !important; border-radius: var(--vc-radius-lg) var(--vc-radius-lg) 0 0 !important; }
+.gradio-container .vc-advanced-card > .form,
+.gradio-container .vc-advanced-card > .wrap,
+.gradio-container .vc-advanced-card > div:not(.label-wrap) { padding-left: 18px !important; padding-right: 18px !important; }
+.gradio-container .vc-advanced-card .row {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    align-items: start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+}
+.gradio-container .vc-advanced-card .row > * { width: 100% !important; min-width: 0 !important; max-width: none !important; }
 .gradio-container .vc-card-wide { margin-top: 2px; }
 
-.gradio-container input[type="range"] { accent-color: var(--vc-primary); }
-.gradio-container input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: var(--vc-border-strong); }
-.gradio-container input[type="range"]::-webkit-slider-thumb { margin-top: -5px; box-shadow: 0 0 0 4px var(--vc-accent-soft); }
+.gradio-container .block:has(input[type="range"]) {
+    min-width: 0 !important;
+    overflow: visible !important;
+}
+
+.gradio-container .block:has(input[type="range"]) .head {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start !important;
+    gap: 10px !important;
+    min-height: 32px;
+    margin-bottom: 5px !important;
+}
+
+.gradio-container .block:has(input[type="range"]) .head > div:last-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+}
+
+.gradio-container .block:has(input[type="range"]) .head label,
+.gradio-container .block:has(input[type="range"]) .head span[data-testid="block-info"] {
+    min-width: 0 !important;
+    padding-right: 4px !important;
+    white-space: normal !important;
+}
+
+.gradio-container .block:has(input[type="range"]) input[type="number"] {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 7px !important;
+    border: 1px solid var(--vc-border-strong) !important;
+    border-radius: 7px !important;
+    background: var(--vc-panel) !important;
+    box-shadow: none !important;
+    font-size: .7rem !important;
+    font-variant-numeric: tabular-nums;
+    text-align: center !important;
+}
+
+.gradio-container .block:has(input[type="range"]) button {
+    width: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    border-radius: 7px !important;
+    transform: none !important;
+}
+
+.gradio-container input[type="range"] {
+    appearance: none !important;
+    width: 100% !important;
+    height: 18px !important;
+    min-height: 18px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    outline: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    accent-color: var(--vc-primary);
+}
+
+.gradio-container input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 3px;
+    background: var(--vc-border-strong);
+}
+
+.gradio-container input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    margin-top: -6px;
+    border: 3px solid var(--vc-panel);
+    border-radius: 50%;
+    background: var(--vc-primary);
+    box-shadow: 0 0 0 3px var(--vc-accent-soft);
+}
+
+.gradio-container input[type="range"]::-moz-range-track { height: 3px; border: 0; border-radius: 3px; background: var(--vc-border-strong); }
+.gradio-container input[type="range"]::-moz-range-thumb { width: 11px; height: 11px; border: 3px solid var(--vc-panel); border-radius: 50%; background: var(--vc-primary); box-shadow: 0 0 0 3px var(--vc-accent-soft); }
 
 .gradio-container .vc-generate-card {
     padding: 24px !important;
@@ -614,7 +791,7 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .vc-generate-card .row { align-items: stretch !important; }
 .vc-generate-card button { min-height: 48px !important; font-size: .82rem !important; }
 #logs_output textarea {
-    min-height: 300px !important;
+    min-height: 220px !important;
     padding: 16px !important;
     border-radius: 10px !important;
     background: #07111d !important;
@@ -650,6 +827,7 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     .vc-section-divider small { display: none; }
     .gradio-container .vc-core-grid { flex-direction: column !important; }
     .gradio-container .vc-core-grid > .vc-stack { width: 100% !important; min-width: 100% !important; }
+    .gradio-container .vc-advanced-card .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 600px) {
@@ -671,6 +849,7 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     .gradio-container .row:not(.vc-appbar-row) > * { width: 100% !important; min-width: 100% !important; }
     #vc-input-source .wrap { flex-wrap: wrap !important; }
     #vc-input-source label[data-testid$="-radio-label"] { flex-basis: calc(50% - 4px) !important; }
+    .gradio-container .vc-advanced-card .row { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
