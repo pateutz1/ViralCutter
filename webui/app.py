@@ -436,6 +436,37 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
         queue=False,
         show_progress="hidden",
     )
+    with gr.Row(elem_id="vc-workspace-nav", elem_classes=["vc-workspace-nav"]):
+        nav_create_btn = gr.Button(
+            i18n("Create New"),
+            elem_id="vc-nav-create",
+            elem_classes=["vc-nav-item", "vc-nav-active"],
+        )
+        nav_editor_btn = gr.Button(
+            i18n("Subtitle Editor"),
+            elem_id="vc-nav-editor",
+            elem_classes=["vc-nav-item"],
+        )
+        nav_library_btn = gr.Button(
+            i18n("Library"),
+            elem_id="vc-nav-library",
+            elem_classes=["vc-nav-item"],
+        )
+
+    def _workspace_nav_js(tab_index):
+        return f"""
+() => {{
+  const nativeTabs = Array.from(document.querySelectorAll('#vc-main-tabs button[role="tab"]'));
+  nativeTabs[{tab_index}]?.click();
+  const navButtons = Array.from(document.querySelectorAll('#vc-workspace-nav button'));
+  navButtons.forEach((button, index) => button.classList.toggle('vc-nav-active', index === {tab_index}));
+}}
+"""
+
+    nav_create_btn.click(fn=None, js=_workspace_nav_js(0), queue=False, show_progress="hidden")
+    nav_editor_btn.click(fn=None, js=_workspace_nav_js(1), queue=False, show_progress="hidden")
+    nav_library_btn.click(fn=None, js=_workspace_nav_js(2), queue=False, show_progress="hidden")
+
     with gr.Tabs(elem_id="vc-main-tabs"):
         with gr.Tab(i18n("Create New")):
              gr.HTML("""
@@ -596,7 +627,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
 
              with gr.Accordion(i18n("Advanced Face Settings"), open=False, elem_classes=["vc-card", "vc-advanced-card"]):
                  face_preset_input = gr.Dropdown(choices=[(i18n(k), k) for k in FACE_PRESETS.keys()], label=i18n("Configuration Presets"), value=ui_state.get("face_preset", "Default (Balanced)"), interactive=True)
-                 with gr.Row():
+                 with gr.Row(elem_classes=["vc-slider-grid"]):
                       face_filter_thresh_input = gr.Slider(label=i18n("Ignore Small Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_filter_thresh", 0.30), step=0.05, info=i18n("Relative size to ignore background."))
                       face_two_thresh_input = gr.Slider(label=i18n("Threshold for 2 Faces (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_two_thresh", 0.60), step=0.05, info=i18n("Size of 2nd face to activate split mode."))
                       face_conf_thresh_input = gr.Slider(label=i18n("Minimum Confidence (0.0 - 1.0)"), minimum=0.0, maximum=1.0, value=ui_state.get("face_conf_thresh", 0.50), step=0.05, info=i18n("Ignore detections with low confidence."))
