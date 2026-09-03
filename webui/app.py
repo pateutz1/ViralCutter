@@ -490,7 +490,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                         video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
                         with gr.Row(elem_id="vc-video-quality-row"):
                             video_quality_input = gr.Dropdown(
-                                choices=["best", "1080p", "720p", "480p"],
+                                choices=[(i18n("Best Quality"), "best"), "1080p", "720p", "480p"],
                                 label=i18n("Video Quality"),
                                 value=ui_state.get("video_quality", "best"),
                                 scale=2,
