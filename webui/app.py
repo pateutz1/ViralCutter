@@ -529,7 +529,7 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                 with gr.Column(scale=1, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-api"]):
                         gr.Markdown(f"### {i18n('API')}")
-                        with gr.Row():
+                        with gr.Row(elem_id="vc-ai-backend-row"):
                             ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2, elem_id="vc-ai-backend-control", elem_classes=["vc-compact-control", "vc-ai-backend-control"])
                             api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
                         with gr.Row(elem_id="vc-ai-model-row"):

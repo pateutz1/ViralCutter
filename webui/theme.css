@@ -684,8 +684,6 @@ button#vc-nav-library::before {
 .gradio-container input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
 .gradio-container textarea:focus,
 .gradio-container select:focus {
-    border-color: var(--vc-primary) !important;
-    box-shadow: 0 0 0 3px var(--vc-accent-soft), inset 0 1px 0 rgba(255,255,255,.03) !important;
     outline: none !important;
 }
 
@@ -834,10 +832,11 @@ button#vc-nav-library::before {
 .gradio-container .vc-translate-control { max-width: 390px !important; }
 
 .gradio-container #vc-video-quality-row,
+.gradio-container #vc-ai-backend-row,
 .gradio-container #vc-ai-model-row {
     display: flex !important;
     flex-flow: row nowrap !important;
-    align-items: start !important;
+    align-items: end !important;
     justify-content: start !important;
     width: 100% !important;
     gap: 16px !important;
@@ -869,6 +868,7 @@ button#vc-nav-library::before {
 }
 
 .gradio-container #vc-video-quality-row span[data-testid="block-info"],
+.gradio-container #vc-ai-backend-row span[data-testid="block-info"],
 .gradio-container #vc-ai-model-row span[data-testid="block-info"] {
     margin-bottom: 9px !important;
     color: var(--vc-text-secondary) !important;
@@ -1297,8 +1297,12 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .gradio-container #vc-ai-backend-control .wrap:has(input[role="combobox"]),
 .gradio-container #vc-ai-model-control .wrap:has(input[role="combobox"]),
 .gradio-container #vc-video-quality-control .wrap:has(input[role="combobox"]) {
+    box-sizing: border-box !important;
     width: max-content !important;
     min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
     overflow: visible !important;
     cursor: pointer !important;
 }
@@ -1308,8 +1312,11 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .gradio-container #vc-video-quality-control .wrap-inner {
     position: relative !important;
     display: inline-flex !important;
+    align-items: center !important;
     width: max-content !important;
     min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
     overflow: visible !important;
     padding: 0 !important;
     gap: 0 !important;
@@ -1320,21 +1327,26 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .gradio-container #vc-ai-model-control .secondary-wrap,
 .gradio-container #vc-video-quality-control .secondary-wrap {
     flex: 0 0 auto !important;
+    align-items: center !important;
     width: auto !important;
     min-width: 0 !important;
+    height: 100% !important;
     overflow: visible !important;
 }
 
 .gradio-container #vc-ai-backend-control input[role="combobox"],
 .gradio-container #vc-ai-model-control input[role="combobox"],
 .gradio-container #vc-video-quality-control input[role="combobox"] {
+    box-sizing: border-box !important;
     field-sizing: content !important;
     width: auto !important;
     min-width: 4ch !important;
-    min-height: 38px !important;
-    height: 38px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
     overflow: visible !important;
     padding: 0 28px 0 12px !important;
+    line-height: 1.2 !important;
     cursor: pointer !important;
     caret-color: transparent !important;
 }
