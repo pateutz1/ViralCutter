@@ -45,28 +45,34 @@ function createMarkup() {
       <h3>${icon("cutting")} Cutting</h3>
       <div class="vc-field vc-field-md">
         <label for="generation_profile">Generation Profile</label>
-        <select class="vc-select" id="generation_profile" name="generation_profile"></select>
-        <p class="vc-help">Sets clip count, duration, face mode, tracking speed, and face preset together.</p>
-      </div>
-      <div class="vc-compact-row">
-        <div class="vc-field vc-field-sm">
-          <label for="segments">Segments</label>
-          <input class="vc-input" id="segments" name="segments" type="number" data-num="1" />
+        <div class="vc-field-control">
+          <select class="vc-select" id="generation_profile" name="generation_profile"></select>
+          <label class="vc-switch"><input type="checkbox" id="viral" name="viral" /><span class="vc-switch-track"></span><span>Viral Mode</span></label>
         </div>
-        <label class="vc-check vc-check-inline"><input type="checkbox" id="viral" name="viral" /> <strong>Viral Mode</strong></label>
+        <p class="vc-help">Sets clip count, duration, face mode, tracking speed, and face preset together.</p>
       </div>
       <div class="vc-field vc-field-md" id="field-themes">
         <label for="themes">Themes</label>
         <input class="vc-input" id="themes" name="themes" placeholder="funny, sad..." />
       </div>
       <div class="vc-compact-row">
+        <div class="vc-field vc-field-sm"><label for="segments">Segments</label><input class="vc-input" id="segments" name="segments" type="number" data-num="1" /></div>
         <div class="vc-field vc-field-sm"><label for="min_duration">Min Duration (s)</label><input class="vc-input" id="min_duration" name="min_duration" type="number" data-num="1" /></div>
         <div class="vc-field vc-field-sm"><label for="max_duration">Max Duration (s)</label><input class="vc-input" id="max_duration" name="max_duration" type="number" data-num="1" /></div>
       </div>
-      <label class="vc-check"><input type="checkbox" id="text_safe_selection" name="text_safe_selection" /> <strong>Text Safe Selection</strong></label>
-      <div class="vc-field vc-field-md">
-        <label for="max_text_frame_percent">Crop-Risk Text Max (%)</label>
-        <input class="vc-input" id="max_text_frame_percent" name="max_text_frame_percent" type="range" min="0" max="100" step="1" />
+      <label class="vc-switch vc-switch-block"><input type="checkbox" id="text_safe_selection" name="text_safe_selection" /><span class="vc-switch-track"></span><span>Text Safe Selection</span></label>
+      <div class="vc-slider" data-default="15">
+        <div class="vc-slider-head">
+          <label for="max_text_frame_percent">Crop-Risk Text Max (%)</label>
+          <div class="vc-slider-tools">
+            <input class="vc-slider-num" id="max_text_frame_percent_num" type="number" min="0" max="100" step="1" />
+            <button type="button" class="vc-slider-reset" id="crop-risk-reset" title="Reset" aria-label="Reset">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.4M21 4v6h-6M21 12a9 9 0 0 1-15.5 6.4M3 20v-6h6"/></svg>
+            </button>
+          </div>
+        </div>
+        <input id="max_text_frame_percent" name="max_text_frame_percent" type="range" min="0" max="100" step="1" data-num="1" />
+        <div class="vc-slider-scale"><span>0</span><span>100</span></div>
       </div>
     </section>
   </div>
@@ -252,6 +258,28 @@ async function refreshPreview() {
   $("subtitle-preview").innerHTML = out.html || "";
 }
 
+function bindCropRisk() {
+  const range = $("max_text_frame_percent");
+  const num = $("max_text_frame_percent_num");
+  const reset = $("crop-risk-reset");
+  if (!range || !num || !reset) return;
+  const def = Number(range.closest(".vc-slider")?.dataset.default || 15);
+  const paint = (value) => {
+    const v = Math.max(0, Math.min(100, Number(value) || 0));
+    range.value = v;
+    num.value = v;
+    range.style.background = `linear-gradient(90deg, var(--vc-primary) ${v}%, var(--vc-border-strong) ${v}%)`;
+  };
+  paint(range.value);
+  range.addEventListener("input", () => paint(range.value));
+  num.addEventListener("input", () => paint(num.value));
+  num.addEventListener("change", () => range.dispatchEvent(new Event("change", { bubbles: true })));
+  reset.addEventListener("click", () => {
+    paint(def);
+    range.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 window.initCreate = function initCreate() {
   $("view-create").innerHTML = createMarkup();
   const state = VC.state;
@@ -262,6 +290,7 @@ window.initCreate = function initCreate() {
   fillSelect($("subtitle_preset"), VC.options.subtitle_presets || [], state.subtitle_preset);
   fillSelect($("whisper_backend"), VC.options.whisper_backends || [], state.whisper_backend);
   applyFields(state);
+  bindCropRisk();
   const sourceRadio = document.querySelector(`#create-form [name=input_source][value="${state.input_source || "YouTube URL"}"]`);
   if (sourceRadio) sourceRadio.checked = true;
   $("field-themes").hidden = Boolean(state.viral);
