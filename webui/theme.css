@@ -836,7 +836,7 @@ button#vc-nav-library::before {
 .gradio-container #vc-ai-model-row {
     display: flex !important;
     flex-flow: row nowrap !important;
-    align-items: end !important;
+    align-items: flex-start !important;
     justify-content: start !important;
     width: 100% !important;
     gap: 16px !important;
@@ -877,10 +877,10 @@ button#vc-nav-library::before {
 }
 
 .gradio-container #vc-youtube-subs-field {
-    align-self: end !important;
+    align-self: flex-start !important;
     gap: 0 !important;
     min-width: 0 !important;
-    margin-top: 26px !important;
+    margin-top: 0 !important;
     overflow: hidden !important;
     border: 1px solid var(--vc-border) !important;
     border-radius: 11px !important;
@@ -901,8 +901,8 @@ button#vc-nav-library::before {
 
 .gradio-container #vc-youtube-subs-field .checkbox-container {
     height: auto !important;
-    min-height: 36px !important;
-    padding: 9px 12px 3px !important;
+    min-height: 28px !important;
+    padding: 7px 12px 2px !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: transparent !important;
@@ -915,7 +915,7 @@ button#vc-nav-library::before {
 }
 
 .gradio-container .vc-field-help {
-    padding: 0 12px 10px 39px !important;
+    padding: 0 12px 7px 39px !important;
     border: 0 !important;
     background: transparent !important;
 }
