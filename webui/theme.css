@@ -1355,15 +1355,21 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
 .gradio-container #vc-video-quality-control .options,
 .gradio-container #vc-video-quality-control [role="listbox"] {
     width: max-content !important;
-    min-width: 0 !important;
+    min-width: max-content !important;
     max-width: none !important;
     box-sizing: border-box !important;
 }
 
 .gradio-container #vc-ai-backend-control [role="option"],
+.gradio-container #vc-ai-backend-control .item,
 .gradio-container #vc-ai-model-control [role="option"],
-.gradio-container #vc-video-quality-control [role="option"] {
+.gradio-container #vc-ai-model-control .item,
+.gradio-container #vc-video-quality-control [role="option"],
+.gradio-container #vc-video-quality-control .item {
+    width: max-content !important;
+    min-width: max-content !important;
     white-space: nowrap !important;
+    word-break: keep-all !important;
     padding: 8px 14px !important;
 }
 
