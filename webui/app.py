@@ -529,12 +529,23 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                 with gr.Column(scale=1, elem_classes=["vc-stack"]):
                     with gr.Group(elem_classes=["vc-card", "vc-card-api"]):
                         gr.Markdown(f"### {i18n('API')}")
-                        with gr.Row(elem_id="vc-ai-backend-row"):
-                            ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2, elem_id="vc-ai-backend-control", elem_classes=["vc-compact-control", "vc-ai-backend-control"])
-                            api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
-                        with gr.Row(elem_id="vc-ai-model-row"):
-                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=4, elem_id="vc-ai-model-control", elem_classes=["vc-compact-control", "vc-ai-model-control"])
-                            chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=1, elem_id="vc-chunk-size-control", elem_classes=["vc-chunk-size-control"])
+                        with gr.Group(elem_id="vc-api-connection-section", elem_classes=["vc-api-section"]):
+                            gr.HTML(
+                                f"""<div class="vc-api-section-title"><span>01</span><strong>{i18n('Provider & credentials')}</strong></div>""",
+                                elem_classes=["vc-api-section-header"],
+                            )
+                            with gr.Row(elem_id="vc-ai-backend-row"):
+                                ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2, elem_id="vc-ai-backend-control", elem_classes=["vc-compact-control", "vc-ai-backend-control"])
+                                api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), visible=ui_state.get("ai_backend", "gemini") in ("gemini", "groq"), scale=3, elem_id="vc-api-key-control")
+
+                        with gr.Group(elem_id="vc-api-model-section", elem_classes=["vc-api-section"]):
+                            gr.HTML(
+                                f"""<div class="vc-api-section-title"><span>02</span><strong>{i18n('Model configuration')}</strong></div>""",
+                                elem_classes=["vc-api-section-header"],
+                            )
+                            with gr.Row(elem_id="vc-ai-model-row"):
+                                ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=ui_state.get("ai_backend", "gemini") != "manual", scale=4, elem_id="vc-ai-model-control", elem_classes=["vc-compact-control", "vc-ai-model-control"])
+                                chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=1, elem_id="vc-chunk-size-control", elem_classes=["vc-chunk-size-control"])
 
                     def update_ai_ui(backend):
                         show_api = backend in ("gemini", "groq")

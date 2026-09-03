@@ -558,6 +558,92 @@ button#vc-nav-library::before {
 
 .gradio-container .vc-card .vc-card::before { display: none !important; }
 
+.gradio-container .vc-card-api {
+    padding-bottom: 16px !important;
+}
+
+.gradio-container #vc-api-connection-section,
+.gradio-container #vc-api-model-section {
+    position: relative;
+    padding: 10px 12px 11px !important;
+    overflow: visible !important;
+    border: 1px solid color-mix(in srgb, var(--vc-border-strong) 78%, transparent) !important;
+    border-radius: 12px !important;
+    background:
+        linear-gradient(115deg, color-mix(in srgb, var(--vc-primary) 4%, transparent), transparent 38%),
+        color-mix(in srgb, var(--vc-panel) 72%, transparent) !important;
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--vc-primary) 62%, transparent), inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+
+.gradio-container #vc-api-model-section {
+    margin-top: 9px !important;
+}
+
+.gradio-container #vc-api-connection-section > #vc-api-connection-section,
+.gradio-container #vc-api-model-section > #vc-api-model-section {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.gradio-container #vc-api-connection-section > #vc-api-connection-section > .styler,
+.gradio-container #vc-api-model-section > #vc-api-model-section > .styler {
+    gap: 0 !important;
+    padding: 0 !important;
+}
+
+.gradio-container .vc-card-api .vc-api-section-header.block {
+    min-height: 0 !important;
+    margin: 0 0 6px !important;
+    padding: 0 0 6px !important;
+    border: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--vc-border) 78%, transparent) !important;
+    background: transparent !important;
+}
+
+.gradio-container .vc-api-section-header.prose {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+}
+
+.gradio-container .vc-api-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.gradio-container .vc-api-section-title > span {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+    border: 1px solid color-mix(in srgb, var(--vc-primary) 38%, var(--vc-border)) !important;
+    border-radius: 7px;
+    background: var(--vc-accent-soft);
+    color: var(--vc-primary);
+    font-size: .62rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.gradio-container .vc-api-section-title strong {
+    color: var(--vc-text);
+    font-size: .74rem;
+    font-weight: 760;
+    letter-spacing: -.01em;
+}
+
+.gradio-container #vc-api-connection-section .block:not(.vc-api-section-header),
+.gradio-container #vc-api-model-section .block:not(.vc-api-section-header) {
+    padding-bottom: 0 !important;
+}
+
 
 .gradio-container .vc-card::before {
     display: none;
@@ -831,15 +917,37 @@ button#vc-nav-library::before {
 .gradio-container .vc-profile-control { max-width: 560px !important; }
 .gradio-container .vc-translate-control { max-width: 390px !important; }
 
-.gradio-container #vc-video-quality-row,
-.gradio-container #vc-ai-backend-row,
-.gradio-container #vc-ai-model-row {
+.gradio-container #vc-video-quality-row {
     display: flex !important;
     flex-flow: row nowrap !important;
     align-items: flex-start !important;
     justify-content: start !important;
     width: 100% !important;
     gap: 16px !important;
+}
+
+.gradio-container #vc-ai-backend-row,
+.gradio-container #vc-ai-model-row {
+    display: block !important;
+    width: 100% !important;
+}
+
+.gradio-container #vc-ai-backend-row > .form,
+.gradio-container #vc-ai-model-row > .form {
+    display: grid !important;
+    align-items: end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 12px !important;
+    padding: 0 !important;
+}
+
+.gradio-container #vc-ai-backend-row > .form {
+    grid-template-columns: minmax(120px, .72fr) minmax(220px, 2.28fr) !important;
+}
+
+.gradio-container #vc-ai-model-row > .form {
+    grid-template-columns: minmax(220px, 1fr) minmax(140px, .42fr) !important;
 }
 
 .gradio-container #vc-video-quality-control {
@@ -853,18 +961,41 @@ button#vc-nav-library::before {
     flex: 1 1 auto !important;
 }
 
-.gradio-container #vc-ai-model-control {
-    flex: 0 0 auto !important;
-    width: fit-content !important;
+.gradio-container #vc-ai-model-row #vc-ai-model-control {
+    grid-column: 1 !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: 360px !important;
+    max-width: none !important;
 }
 
 .gradio-container #vc-chunk-size-control {
-    flex: 0 0 140px !important;
-    width: 140px !important;
-    min-width: 140px !important;
-    max-width: 140px !important;
+    grid-column: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.gradio-container #vc-ai-backend-row #vc-ai-backend-control,
+.gradio-container #vc-api-key-control {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+}
+
+.gradio-container #vc-ai-backend-row #vc-ai-backend-control .wrap:has(input[role="combobox"]),
+.gradio-container #vc-ai-model-row #vc-ai-model-control .wrap:has(input[role="combobox"]),
+.gradio-container #vc-ai-backend-row #vc-ai-backend-control .wrap-inner,
+.gradio-container #vc-ai-model-row #vc-ai-model-control .wrap-inner,
+.gradio-container #vc-ai-backend-row #vc-ai-backend-control .secondary-wrap,
+.gradio-container #vc-ai-model-row #vc-ai-model-control .secondary-wrap {
+    width: 100% !important;
+}
+
+.gradio-container #vc-ai-backend-row #vc-ai-backend-control input[role="combobox"],
+.gradio-container #vc-ai-model-row #vc-ai-model-control input[role="combobox"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    field-sizing: fixed !important;
 }
 
 .gradio-container #vc-video-quality-row span[data-testid="block-info"],
@@ -1424,6 +1555,10 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     .gradio-container .vc-translate-control { width: 100% !important; max-width: none !important; }
     .gradio-container #vc-video-quality-row,
     .gradio-container #vc-ai-model-row { flex-direction: column !important; gap: 10px !important; }
+    .gradio-container #vc-ai-backend-row > .form,
+    .gradio-container #vc-ai-model-row > .form { grid-template-columns: 1fr !important; }
+    .gradio-container #vc-ai-model-control,
+    .gradio-container #vc-chunk-size-control { grid-column: 1 !important; }
     .gradio-container #vc-video-quality-control,
     .gradio-container #vc-ai-backend-control,
     .gradio-container #vc-ai-model-control,
