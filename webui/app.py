@@ -385,7 +385,11 @@ theme_init_js = (
     + "'; document.documentElement.setAttribute('data-theme', t);"
     " document.documentElement.classList.toggle('dark', t === 'dark');"
     " if (document.body) { document.body.setAttribute('data-theme', t);"
-    " document.body.classList.toggle('dark', t === 'dark'); } }"
+    " document.body.classList.toggle('dark', t === 'dark'); }"
+    " document.addEventListener('focusin', (e) => {"
+    " const el = e.target;"
+    " if (el && el.matches && el.matches('#vc-ai-backend-control input[role=\"combobox\"], #vc-ai-model-control input[role=\"combobox\"], #vc-video-quality-control input[role=\"combobox\"]')) el.setAttribute('readonly', 'readonly');"
+    " }, true); }"
 )
 
 THEME_CLICK_JS = """
@@ -484,15 +488,16 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             elem_id="vc-youtube-url",
                         )
                         video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
-                        with gr.Row(elem_classes=["vc-video-quality-row"]):
+                        with gr.Row(elem_id="vc-video-quality-row"):
                             video_quality_input = gr.Dropdown(
                                 choices=["best", "1080p", "720p", "480p"],
                                 label=i18n("Video Quality"),
                                 value=ui_state.get("video_quality", "best"),
                                 scale=2,
+                                elem_id="vc-video-quality-control",
                                 elem_classes=["vc-compact-control", "vc-video-quality-control"],
                             )
-                            with gr.Column(scale=3, elem_classes=["vc-youtube-subs-field"]):
+                            with gr.Column(scale=3, elem_id="vc-youtube-subs-field"):
                                 use_youtube_subs_input = gr.Checkbox(
                                     label=i18n("Use YouTube Subs"),
                                     value=ui_state.get("use_youtube_subs", True),
@@ -516,11 +521,11 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                     with gr.Group(elem_classes=["vc-card", "vc-card-api"]):
                         gr.Markdown(f"### {i18n('API')}")
                         with gr.Row():
-                            ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2)
+                            ai_backend_input = gr.Dropdown(choices=[(i18n("Gemini"), "gemini"), (i18n("Groq"), "groq"), (i18n("Cloudflare"), "cloudflare"), (i18n("G4F"), "g4f"), (i18n("Manual"), "manual")], label=i18n("AI Backend"), value=ui_state.get("ai_backend", "gemini"), scale=2, elem_id="vc-ai-backend-control", elem_classes=["vc-compact-control", "vc-ai-backend-control"])
                             api_key_input = gr.Textbox(label=i18n("Gemini API Key"), type="password", value=ui_cfg.load_saved_api_key(ui_state.get("ai_backend", "gemini")), scale=3)
-                        with gr.Row():
-                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=3, elem_classes=["vc-compact-control", "vc-ai-model-control"])
-                            chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=2)
+                        with gr.Row(elem_id="vc-ai-model-row"):
+                            ai_model_input = gr.Dropdown(choices=GEMINI_MODELS, label=i18n("AI Model"), value=ui_state.get("ai_model_name", GEMINI_MODELS[0]), allow_custom_value=True, visible=True, scale=4, elem_id="vc-ai-model-control", elem_classes=["vc-compact-control", "vc-ai-model-control"])
+                            chunk_size_input = gr.Number(label=i18n("Chunk Size"), value=ui_state.get("chunk_size", 70000), precision=0, scale=1, elem_id="vc-chunk-size-control", elem_classes=["vc-chunk-size-control"])
 
                     def update_ai_ui(backend):
                         show_api = backend in ("gemini", "groq")
@@ -553,14 +558,14 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             gr.update(value=new_chunk)
                         )
 
-                    ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, chunk_size_input])
+                    ai_backend_input.change(update_ai_ui, inputs=ai_backend_input, outputs=[api_key_input, ai_model_input, chunk_size_input], show_progress="hidden")
 
                     def update_gemini_chunk(model_name):
                         if model_name and "pro" in str(model_name).lower() and "flash" not in str(model_name).lower():
                             return gr.update(value=20000)
                         return gr.update(value=70000)
 
-                    ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input)
+                    ai_model_input.change(update_gemini_chunk, inputs=ai_model_input, outputs=chunk_size_input, show_progress="hidden")
 
              gr.HTML("""
 <div class="vc-section-divider"><span>02</span><div><strong>Processing</strong><small>Choose how clips are detected, framed, and transcribed.</small></div></div>
