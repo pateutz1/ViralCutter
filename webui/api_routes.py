@@ -235,15 +235,8 @@ def subtitle_preview(payload: SettingsPayload):
 
 @router.post("/api/subtitles/preview-video")
 def subtitle_preview_video(payload: SettingsPayload):
-    result = subs.render_preview_video(*_subtitle_style_args(payload.data or {}))
-    path = None
-    if isinstance(result, str) and os.path.exists(result):
-        path = result
-    elif result is not None:
-        value = getattr(result, "value", None)
-        if isinstance(value, str) and os.path.exists(value):
-            path = value
-    if not path:
+    path = subs.render_preview_video(*_subtitle_style_args(payload.data or {}))
+    if not (isinstance(path, str) and os.path.exists(path)):
         raise HTTPException(status_code=500, detail="Preview render failed.")
     return {"url": f"/preview/{os.path.basename(path)}"}
 

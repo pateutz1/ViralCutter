@@ -531,7 +531,7 @@ def render_preview_video(font, size, color, highlight, outline, outline_thick, s
                         except: pass
             except: pass
             
-            return gr.update(value=cache_bust_path, autoplay=True)
+            return cache_bust_path
             
     except Exception as e:
         print(f"Preview Gen Error: {e}")

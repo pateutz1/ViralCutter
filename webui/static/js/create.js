@@ -35,8 +35,15 @@ function createMarkup() {
           </select>
         </div>
         <div class="vc-field">
-          <label class="vc-check"><input type="checkbox" id="use_youtube_subs" name="use_youtube_subs" /> <strong>Use YouTube Subs</strong></label>
-          <span class="vc-subs-hint">Download and use official subtitles if available. (Recommended, it speeds up the process)</span>
+          <span class="vc-label">Subtitles</span>
+          <label class="vc-choice">
+            <input type="checkbox" id="use_youtube_subs" name="use_youtube_subs" />
+            <span class="vc-switch-track"></span>
+            <span class="vc-choice-copy">
+              <strong>Use YouTube Subs</strong>
+              <small>Download and use official subtitles if available. (Recommended, it speeds up the process)</small>
+            </span>
+          </label>
         </div>
       </div>
     </section>
@@ -110,21 +117,29 @@ function createMarkup() {
       </div>
       <details class="vc-nested">
         <summary>${icon("sliders")} Advanced Face Settings</summary>
-        <div class="vc-field"><label for="face_preset">Configuration Presets</label><select class="vc-select" id="face_preset" name="face_preset"></select></div>
-        <div class="vc-slider-grid">
-          <div class="vc-field"><label for="face_filter_thresh">Ignore Small Faces</label><input class="vc-input" id="face_filter_thresh" name="face_filter_thresh" type="number" step="0.05" min="0" max="1" data-num="1" /><p class="vc-help">Relative size to ignore background.</p></div>
+        <div class="vc-field">
+          <label for="face_preset">Configuration Presets</label>
+          <select class="vc-select" id="face_preset" name="face_preset"></select>
+        </div>
+        <div class="vc-compact-grid">
+          <div class="vc-field"><label for="face_filter_thresh">Ignore Small Faces</label><input class="vc-input" id="face_filter_thresh" name="face_filter_thresh" type="number" step="0.05" min="0" max="1" data-num="1" title="Relative size to ignore background." /></div>
           <div class="vc-field"><label for="face_two_thresh">Threshold for 2 Faces</label><input class="vc-input" id="face_two_thresh" name="face_two_thresh" type="number" step="0.05" min="0" max="1" data-num="1" /></div>
           <div class="vc-field"><label for="face_conf_thresh">Minimum Confidence</label><input class="vc-input" id="face_conf_thresh" name="face_conf_thresh" type="number" step="0.05" min="0" max="1" data-num="1" /></div>
           <div class="vc-field"><label for="face_dead_zone">Dead Zone</label><input class="vc-input" id="face_dead_zone" name="face_dead_zone" type="number" step="5" min="0" max="120" data-num="1" /></div>
         </div>
-        <details>
+        <details class="vc-nested vc-nested-sub">
           <summary>Experimental: Active Speaker & Motion</summary>
-          <div class="vc-field"><label for="experimental_preset">Configuration Presets</label><select class="vc-select" id="experimental_preset" name="experimental_preset"></select></div>
-          <label class="vc-check"><input type="checkbox" id="focus_active_speaker" name="focus_active_speaker" /> <strong>Focus on Speaker</strong></label>
-          <div class="vc-slider-grid">
+          <div class="vc-field">
+            <label for="experimental_preset">Configuration Presets</label>
+            <select class="vc-select" id="experimental_preset" name="experimental_preset"></select>
+          </div>
+          <div class="vc-compact-row" style="margin-bottom:10px">
+            <label class="vc-switch"><input type="checkbox" id="focus_active_speaker" name="focus_active_speaker" /><span class="vc-switch-track"></span><span>Focus on Speaker</span></label>
+            <label class="vc-switch"><input type="checkbox" id="include_motion" name="include_motion" /><span class="vc-switch-track"></span><span>Consider Motion</span></label>
+          </div>
+          <div class="vc-compact-grid">
             <div class="vc-field"><label for="active_speaker_mar">MAR Threshold</label><input class="vc-input" id="active_speaker_mar" name="active_speaker_mar" type="number" step="0.005" min="0.01" max="0.20" data-num="1" /></div>
             <div class="vc-field"><label for="active_speaker_score_diff">Score Difference</label><input class="vc-input" id="active_speaker_score_diff" name="active_speaker_score_diff" type="number" step="0.5" min="0.5" max="10" data-num="1" /></div>
-            <label class="vc-check"><input type="checkbox" id="include_motion" name="include_motion" /> <strong>Consider Motion</strong></label>
             <div class="vc-field"><label for="active_speaker_motion_threshold">Motion Dead Zone</label><input class="vc-input" id="active_speaker_motion_threshold" name="active_speaker_motion_threshold" type="number" step="0.5" min="0" max="20" data-num="1" /></div>
             <div class="vc-field"><label for="active_speaker_motion_sensitivity">Motion Sensitivity</label><input class="vc-input" id="active_speaker_motion_sensitivity" name="active_speaker_motion_sensitivity" type="number" step="0.01" min="0.01" max="0.5" data-num="1" /></div>
             <div class="vc-field"><label for="active_speaker_decay">Switch Speed</label><input class="vc-input" id="active_speaker_decay" name="active_speaker_decay" type="number" step="0.5" min="0.5" max="5" data-num="1" /></div>
@@ -135,14 +150,14 @@ function createMarkup() {
 
     <section class="vc-card">
       <h3>${icon("captions")} Captions</h3>
-      <div class="vc-row">
-        <div class="vc-field">
-          <label for="whisper_backend">Whisper Backend</label>
+      <div class="vc-field">
+        <label for="whisper_backend">Whisper Backend</label>
+        <div class="vc-field-control">
           <select class="vc-select" id="whisper_backend" name="whisper_backend"></select>
+          <label class="vc-switch"><input type="checkbox" id="enable_captions" name="enable_captions" /><span class="vc-switch-track"></span><span>Enable Captions</span></label>
         </div>
-        <label class="vc-check vc-check-inline"><input type="checkbox" id="enable_captions" name="enable_captions" /> <strong>Enable Captions</strong></label>
       </div>
-      <div class="vc-field vc-field-md">
+      <div class="vc-field">
         <label for="translate_target">Translate Subtitles To</label>
         <select class="vc-select" id="translate_target" name="translate_target">
           <option>None</option><option>pt</option><option>en</option><option>es</option><option>fr</option>
@@ -151,53 +166,53 @@ function createMarkup() {
       </div>
       <details class="vc-nested">
         <summary>${icon("subtitles")} Subtitle Settings (alpha)</summary>
-        <div class="vc-row">
-          <div class="vc-field"><label for="subtitle_preset">Quick Presets</label><select class="vc-select" id="subtitle_preset" name="subtitle_preset"></select></div>
-          <label class="vc-check vc-check-inline"><input type="checkbox" id="use_custom_subs" name="use_custom_subs" /> <strong>Enable Subtitle Customization</strong></label>
+        <div class="vc-field">
+          <label for="subtitle_preset">Quick Presets</label>
+          <div class="vc-field-control">
+            <select class="vc-select" id="subtitle_preset" name="subtitle_preset"></select>
+            <label class="vc-switch"><input type="checkbox" id="use_custom_subs" name="use_custom_subs" /><span class="vc-switch-track"></span><span>Customize</span></label>
+          </div>
         </div>
-        <div id="subtitle-preview"></div>
-        <div class="vc-actions" style="margin:10px 0 16px">
-          <button type="button" class="vc-btn" id="preview-video-btn">Render Animated Preview</button>
+        <div class="vc-preview-block">
+          <div class="vc-preview-toolbar">
+            <span class="vc-preview-title">${icon("video")} Animated Preview</span>
+            <button type="button" class="vc-btn vc-btn-primary" id="preview-video-btn">Render Animated Preview</button>
+          </div>
+          <div id="subtitle-preview" class="vc-preview-stage"></div>
+          <video id="subtitle-preview-video" class="vc-preview-video" controls hidden></video>
         </div>
-        <video id="subtitle-preview-video" controls hidden style="width:min(240px,100%);border-radius:12px"></video>
-        <details>
+        <details class="vc-nested vc-nested-sub">
           <summary>Advanced Settings</summary>
-          <div class="vc-row">
+          <div class="vc-compact-grid">
             <div class="vc-field"><label for="font_name">Font Name</label><input class="vc-input" id="font_name" name="font_name" /></div>
             <div class="vc-field"><label for="font_size">Font Size</label><input class="vc-input" id="font_size" name="font_size" type="number" min="8" max="80" data-num="1" /></div>
             <div class="vc-field"><label for="highlight_size">Highlight Size</label><input class="vc-input" id="highlight_size" name="highlight_size" type="number" min="8" max="80" data-num="1" /></div>
-          </div>
-          <div class="vc-row">
+            <div class="vc-field"><label for="mode">Mode</label>
+              <select class="vc-select" id="mode" name="mode"><option value="highlight">Highlight</option><option value="word_by_word">Word by Word</option><option value="no_highlight">No Highlight</option></select>
+            </div>
             <div class="vc-field"><label for="font_color">Base Color</label><input class="vc-input" id="font_color" name="font_color" type="color" /></div>
             <div class="vc-field"><label for="highlight_color">Highlight Color</label><input class="vc-input" id="highlight_color" name="highlight_color" type="color" /></div>
             <div class="vc-field"><label for="outline_color">Outline Color</label><input class="vc-input" id="outline_color" name="outline_color" type="color" /></div>
             <div class="vc-field"><label for="shadow_color">Shadow Color</label><input class="vc-input" id="shadow_color" name="shadow_color" type="color" /></div>
-          </div>
-          <div class="vc-row">
             <div class="vc-field"><label for="outline_thickness">Outline Thickness</label><input class="vc-input" id="outline_thickness" name="outline_thickness" type="number" step="0.5" min="0" max="10" data-num="1" /></div>
             <div class="vc-field"><label for="shadow_size">Shadow Size</label><input class="vc-input" id="shadow_size" name="shadow_size" type="number" min="0" max="10" data-num="1" /></div>
             <div class="vc-field"><label for="border_s">Border Style</label>
               <select class="vc-select" id="border_s" name="border_s"><option value="1">Outline</option><option value="3">Opaque Box</option></select>
             </div>
-          </div>
-          <div class="vc-row">
-            <label class="vc-check"><input type="checkbox" id="is_bold" name="is_bold" /> <strong>Bold</strong></label>
-            <label class="vc-check"><input type="checkbox" id="is_italic" name="is_italic" /> <strong>Italic</strong></label>
-            <label class="vc-check"><input type="checkbox" id="is_uppercase" name="is_uppercase" /> <strong>Uppercase</strong></label>
-            <label class="vc-check"><input type="checkbox" id="remove_punc" name="remove_punc" /> <strong>Remove Punctuation</strong></label>
-            <label class="vc-check"><input type="checkbox" id="under" name="under" /> <strong>Underline</strong></label>
-            <label class="vc-check"><input type="checkbox" id="strike" name="strike" /> <strong>Strikeout</strong></label>
-          </div>
-          <div class="vc-row">
-            <div class="vc-field"><label for="vertical_pos">V-Pos</label><input class="vc-input" id="vertical_pos" name="vertical_pos" type="number" min="0" max="500" data-num="1" /></div>
             <div class="vc-field"><label for="alignment">Alignment</label>
               <select class="vc-select" id="alignment" name="alignment"><option value="1">Left</option><option value="2">Center</option><option value="3">Right</option></select>
             </div>
+            <div class="vc-field"><label for="vertical_pos">V-Pos</label><input class="vc-input" id="vertical_pos" name="vertical_pos" type="number" min="0" max="500" data-num="1" /></div>
             <div class="vc-field"><label for="gap">Gap Limit</label><input class="vc-input" id="gap" name="gap" type="number" step="0.1" min="0" max="5" data-num="1" /></div>
-            <div class="vc-field"><label for="mode">Mode</label>
-              <select class="vc-select" id="mode" name="mode"><option value="highlight">Highlight</option><option value="word_by_word">Word by Word</option><option value="no_highlight">No Highlight</option></select>
-            </div>
             <div class="vc-field"><label for="w_block">Words per Block</label><input class="vc-input" id="w_block" name="w_block" type="number" min="1" max="20" data-num="1" /></div>
+          </div>
+          <div class="vc-compact-row" style="margin-top:10px">
+            <label class="vc-switch"><input type="checkbox" id="is_bold" name="is_bold" /><span class="vc-switch-track"></span><span>Bold</span></label>
+            <label class="vc-switch"><input type="checkbox" id="is_italic" name="is_italic" /><span class="vc-switch-track"></span><span>Italic</span></label>
+            <label class="vc-switch"><input type="checkbox" id="is_uppercase" name="is_uppercase" /><span class="vc-switch-track"></span><span>Uppercase</span></label>
+            <label class="vc-switch"><input type="checkbox" id="remove_punc" name="remove_punc" /><span class="vc-switch-track"></span><span>Remove Punctuation</span></label>
+            <label class="vc-switch"><input type="checkbox" id="under" name="under" /><span class="vc-switch-track"></span><span>Underline</span></label>
+            <label class="vc-switch"><input type="checkbox" id="strike" name="strike" /><span class="vc-switch-track"></span><span>Strikeout</span></label>
           </div>
         </details>
       </details>
