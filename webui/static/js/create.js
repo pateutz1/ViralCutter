@@ -219,17 +219,38 @@ function createMarkup() {
     </section>
   </div>
 <div class="vc-section-divider"><span>03</span><div><strong>Output</strong><small>Start processing and follow the render in real time.</small></div></div>
-  <section class="vc-card">
+  <section class="vc-card vc-generate" id="generate-card" data-state="idle">
     <h3>${icon("generate")} Generate</h3>
-    <div class="vc-actions">
-      <button type="button" class="vc-btn vc-btn-primary" id="start-btn">Start Processing</button>
-      <button type="button" class="vc-btn vc-btn-stop" id="stop-btn" hidden>Stop</button>
+    <div class="vc-generate-bar">
+      <div class="vc-generate-meta">
+        <span class="vc-generate-dot" aria-hidden="true"></span>
+        <div>
+          <strong id="generate-state">Ready</strong>
+          <small id="generate-hint">Queue a render when the source and captions look right.</small>
+        </div>
+      </div>
+      <div class="vc-generate-actions">
+        <button type="button" class="vc-btn vc-btn-primary vc-btn-generate" id="start-btn">
+          ${icon("actions")}
+          <span id="start-btn-label">Start Processing</span>
+        </button>
+        <button type="button" class="vc-btn vc-btn-stop vc-btn-generate" id="stop-btn" hidden>
+          ${icon("stop")}
+          <span>Stop</span>
+        </button>
+      </div>
     </div>
-    <div class="vc-field" style="margin-top:14px">
-      <label for="logs">Logs</label>
-      <textarea class="vc-textarea" id="logs" readonly></textarea>
+    <div class="vc-console">
+      <div class="vc-console-head">
+        <span class="vc-console-title">${icon("terminal")} Console</span>
+        <span class="vc-console-live" id="generate-live" hidden>Live</span>
+      </div>
+      <textarea class="vc-textarea vc-console-body" id="logs" readonly placeholder="Output appears here once processing starts."></textarea>
     </div>
-    <div id="results"></div>
+    <div class="vc-output-clips" id="results-wrap" hidden>
+      <div class="vc-preview-title">${icon("gallery")} Output clips</div>
+      <div id="results"></div>
+    </div>
   </section>
 </form>`;
 }
@@ -354,15 +375,35 @@ window.initCreate = function initCreate() {
   $("stop-btn").addEventListener("click", () => api("/api/run/stop", { method: "POST" }));
 };
 
+function setGenerateState(state, title, hint) {
+  const card = $("generate-card");
+  if (card) card.dataset.state = state;
+  const label = $("generate-state");
+  const note = $("generate-hint");
+  const live = $("generate-live");
+  if (label) label.textContent = title;
+  if (note) note.textContent = hint;
+  if (live) live.hidden = state !== "running";
+}
+
 async function startJob() {
   const startBtn = $("start-btn");
+  const startLabel = $("start-btn-label");
   const stopBtn = $("stop-btn");
   const logs = $("logs");
+  const finish = (state, title, hint) => {
+    startBtn.disabled = false;
+    if (startLabel) startLabel.textContent = "Start Processing";
+    stopBtn.hidden = true;
+    setGenerateState(state, title, hint);
+  };
   startBtn.disabled = true;
-  startBtn.textContent = "Running...";
+  if (startLabel) startLabel.textContent = "Running…";
   stopBtn.hidden = false;
   logs.value = "";
   $("results").innerHTML = "";
+  $("results-wrap").hidden = true;
+  setGenerateState("running", "Processing", "Streaming encoder output in real time.");
   try {
     const { job_id } = await api("/api/run", { method: "POST", body: JSON.stringify({ settings: formPayload() }) });
     const source = new EventSource(`/api/run/${job_id}/stream`);
@@ -376,22 +417,17 @@ async function startJob() {
       if (sticky) logs.scrollTop = logs.scrollHeight;
       if (data.done) {
         source.close();
-        startBtn.disabled = false;
-        startBtn.textContent = "Start Processing";
-        stopBtn.hidden = true;
         $("results").innerHTML = data.gallery_html || "";
+        $("results-wrap").hidden = !data.gallery_html;
+        finish("done", data.gallery_html ? "Complete" : "Finished", data.gallery_html ? "Clips are ready below." : "No clips were produced.");
       }
     };
     source.onerror = () => {
       source.close();
-      startBtn.disabled = false;
-      startBtn.textContent = "Start Processing";
-      stopBtn.hidden = true;
+      finish("error", "Disconnected", "The live stream closed before the job finished.");
     };
   } catch (err) {
     logs.value = err.message;
-    startBtn.disabled = false;
-    startBtn.textContent = "Start Processing";
-    stopBtn.hidden = true;
+    finish("error", "Failed", err.message);
   }
 }
