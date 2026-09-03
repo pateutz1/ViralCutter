@@ -935,7 +935,7 @@ button#vc-nav-library::before {
 .gradio-container #vc-ai-backend-row > .form,
 .gradio-container #vc-ai-model-row > .form {
     display: grid !important;
-    align-items: end !important;
+    align-items: start !important;
     width: 100% !important;
     min-width: 0 !important;
     gap: 12px !important;
