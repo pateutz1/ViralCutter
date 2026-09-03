@@ -497,23 +497,21 @@ with gr.Blocks(title=i18n("ViralCutter WebUI"), theme=vc_theme, css=css, head=he
                             elem_id="vc-youtube-url",
                         )
                         video_upload = gr.File(label=i18n("Upload Video"), file_count="single", file_types=["video"], visible=False)
-                        with gr.Row(elem_id="vc-video-quality-row"):
+                        with gr.Row(elem_id="vc-video-options-row", elem_classes=["vc-video-options-row"]):
                             video_quality_input = gr.Dropdown(
                                 choices=[(i18n("Best Quality"), "best"), "1080p", "720p", "480p"],
                                 label=i18n("Video Quality"),
                                 value=ui_state.get("video_quality", "best"),
-                                scale=2,
                                 elem_id="vc-video-quality-control",
-                                elem_classes=["vc-compact-control", "vc-video-quality-control"],
+                                elem_classes=["vc-compact-control"],
                             )
-                            with gr.Column(scale=3, elem_id="vc-youtube-subs-field"):
+                            with gr.Column(elem_id="vc-youtube-subs-field", min_width=0):
                                 use_youtube_subs_input = gr.Checkbox(
                                     label=i18n("Use YouTube Subs"),
                                     value=ui_state.get("use_youtube_subs", True),
                                 )
-                                gr.Markdown(
-                                    i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)"),
-                                    elem_classes=["vc-field-help"],
+                                gr.HTML(
+                                    f'<span class="vc-subs-hint">{i18n("Download and use official subtitles if available. (Recommended, it speeds up the process)")}</span>',
                                 )
                         project_selector = gr.Dropdown(choices=[], label=i18n("Select Project"), visible=False)
 

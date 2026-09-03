@@ -917,13 +917,14 @@ button#vc-nav-library::before {
 .gradio-container .vc-profile-control { max-width: 560px !important; }
 .gradio-container .vc-translate-control { max-width: 390px !important; }
 
-.gradio-container #vc-video-quality-row {
+.gradio-container #vc-video-options-row {
     display: flex !important;
     flex-flow: row nowrap !important;
-    align-items: flex-start !important;
+    align-items: flex-end !important;
     justify-content: start !important;
     width: 100% !important;
-    gap: 16px !important;
+    gap: 20px !important;
+    margin-top: -4px !important;
 }
 
 .gradio-container #vc-ai-backend-row,
@@ -953,8 +954,8 @@ button#vc-nav-library::before {
 .gradio-container #vc-video-quality-control {
     flex: 0 0 auto !important;
     width: fit-content !important;
-    min-width: 0 !important;
-    max-width: 360px !important;
+    min-width: 120px !important;
+    max-width: 200px !important;
 }
 
 .gradio-container #vc-youtube-subs-field {
@@ -998,7 +999,7 @@ button#vc-nav-library::before {
     field-sizing: fixed !important;
 }
 
-.gradio-container #vc-video-quality-row span[data-testid="block-info"],
+.gradio-container #vc-video-options-row span[data-testid="block-info"],
 .gradio-container #vc-ai-backend-row span[data-testid="block-info"],
 .gradio-container #vc-ai-model-row span[data-testid="block-info"] {
     margin-bottom: 9px !important;
@@ -1008,57 +1009,40 @@ button#vc-nav-library::before {
 }
 
 .gradio-container #vc-youtube-subs-field {
-    align-self: flex-start !important;
+    flex: 1 1 auto !important;
+    align-self: flex-end !important;
     gap: 0 !important;
     min-width: 0 !important;
-    margin-top: 0 !important;
-    overflow: hidden !important;
-    border: 1px solid var(--vc-border) !important;
-    border-radius: 11px !important;
-    background: color-mix(in srgb, var(--vc-panel) 94%, var(--vc-card)) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.035) !important;
-    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease !important;
-}
-
-.gradio-container #vc-youtube-subs-field:hover {
-    border-color: var(--vc-border-strong) !important;
-    background: var(--vc-panel) !important;
-}
-
-.gradio-container #vc-youtube-subs-field:focus-within {
-    border-color: var(--vc-primary) !important;
-    box-shadow: 0 0 0 3px var(--vc-accent-soft), inset 0 1px 0 rgba(255,255,255,.035) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .gradio-container #vc-youtube-subs-field .checkbox-container {
     height: auto !important;
-    min-height: 28px !important;
-    padding: 7px 12px 2px !important;
+    min-height: 0 !important;
+    padding: 0 0 6px !important;
     border: 0 !important;
-    border-radius: 0 !important;
     background: transparent !important;
 }
 
 .gradio-container #vc-youtube-subs-field .checkbox-container .label-text {
     font-size: .78rem !important;
-    font-weight: 700 !important;
-    line-height: 1.35 !important;
+    font-weight: 680 !important;
+    line-height: 1.2 !important;
 }
 
-.gradio-container .vc-field-help {
-    padding: 0 12px 7px 39px !important;
-    border: 0 !important;
-    background: transparent !important;
-}
-
-.gradio-container .vc-field-help p {
-    max-width: 48ch;
-    margin: 0 !important;
+.vc-subs-hint {
+    display: block;
+    padding-left: 26px;
+    margin-top: -2px;
     color: var(--vc-text-muted) !important;
-    font-size: .66rem !important;
-    font-weight: 500 !important;
-    line-height: 1.48 !important;
-    text-wrap: pretty;
+    font-size: .62rem;
+    font-weight: 480;
+    line-height: 1.45;
+    opacity: .72;
 }
 
 .gradio-container .vc-chunk-size-control input {
@@ -1553,7 +1537,7 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     .gradio-container .vc-ai-backend-control,
     .gradio-container .vc-profile-control,
     .gradio-container .vc-translate-control { width: 100% !important; max-width: none !important; }
-    .gradio-container #vc-video-quality-row,
+    .gradio-container #vc-video-options-row,
     .gradio-container #vc-ai-model-row { flex-direction: column !important; gap: 10px !important; }
     .gradio-container #vc-ai-backend-row > .form,
     .gradio-container #vc-ai-model-row > .form { grid-template-columns: 1fr !important; }
