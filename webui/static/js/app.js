@@ -203,6 +203,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (window.initCreate) window.initCreate();
     if (window.initEditor) window.initEditor();
     if (window.initLibrary) window.initLibrary();
+    if (window.initSettings) window.initSettings();
     enhanceSelects();
     document.addEventListener("click", (event) => {
       if (!event.target.closest(".vc-dropdown")) closeDropdowns();
