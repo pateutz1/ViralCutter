@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViralCutter</title>
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script>
+    (function () {
+      var t = localStorage.getItem("vc-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
+</head>
+<body>
+  <a class="vc-skip-link" href="#vc-workspace">Skip to workspace</a>
+  <header class="vc-appbar">
+    <div class="vc-brand" aria-label="ViralCutter home">
+      <span class="vc-brand-symbol" aria-hidden="true">
+        <svg viewBox="0 0 32 32" role="img">
+          <path d="M8 7.5h7.5L24 16l-8.5 8.5H8l8.5-8.5L8 7.5Z" />
+          <path d="M17.5 7.5H24v6.5" />
+        </svg>
+      </span>
+      <span class="vc-brand-copy">
+        <span class="vc-mark">ViralCutter</span>
+        <span class="vc-tagline">Turn long videos into short reels.</span>
+      </span>
+      <span class="vc-local-badge"><i></i>Local workspace</span>
+    </div>
+    <button type="button" id="vc-theme-toggle" class="vc-btn vc-btn-ghost">Light</button>
+  </header>
+
+  <main id="vc-workspace">
+    <section class="vc-workspace-heading">
+      <div>
+        <span class="vc-eyebrow">New production</span>
+        <h1>Create your next short</h1>
+        <p>Choose the source, tune clip selection, and control framing and captions in one focused workspace.</p>
+      </div>
+      <div class="vc-workspace-meta"><span>01</span><small>Workspace</small></div>
+    </section>
+
+    <nav class="vc-workspace-nav" id="vc-workspace-nav">
+      <button type="button" class="vc-nav-item vc-nav-active" data-view="create">Create New</button>
+      <button type="button" class="vc-nav-item" data-view="editor">Subtitle Editor</button>
+      <button type="button" class="vc-nav-item" data-view="library">Library</button>
+    </nav>
+
+    <section id="view-create" class="vc-view is-active"></section>
+    <section id="view-editor" class="vc-view" hidden></section>
+    <section id="view-library" class="vc-view" hidden></section>
+  </main>
+
+  <p class="vc-footer">100% local · open source · no subscription required</p>
+
+  <script src="/static/js/app.js"></script>
+  <script src="/static/js/create.js"></script>
+  <script src="/static/js/editor.js"></script>
+  <script src="/static/js/library.js"></script>
+</body>
+</html>
