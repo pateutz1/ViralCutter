@@ -386,9 +386,18 @@ theme_init_js = (
     " document.documentElement.classList.toggle('dark', t === 'dark');"
     " if (document.body) { document.body.setAttribute('data-theme', t);"
     " document.body.classList.toggle('dark', t === 'dark'); }"
+    " const dd = '#vc-ai-backend-control, #vc-ai-model-control, #vc-video-quality-control';"
     " document.addEventListener('focusin', (e) => {"
     " const el = e.target;"
     " if (el && el.matches && el.matches('#vc-ai-backend-control input[role=\"combobox\"], #vc-ai-model-control input[role=\"combobox\"], #vc-video-quality-control input[role=\"combobox\"]')) el.setAttribute('readonly', 'readonly');"
+    " }, true);"
+    " document.addEventListener('mousedown', (e) => {"
+    " const root = e.target.closest(dd);"
+    " if (!root || e.target.closest('[role=\"option\"], .options, [role=\"listbox\"]')) return;"
+    " const wrap = e.target.closest('.wrap');"
+    " if (!wrap || !root.contains(wrap)) return;"
+    " const input = wrap.querySelector('input[role=\"combobox\"]');"
+    " if (input && e.target !== input) { e.preventDefault(); input.focus(); }"
     " }, true); }"
 )
 

@@ -709,8 +709,7 @@ button#vc-nav-library::before {
     min-height: 40px !important;
     padding: 0 !important;
     overflow: hidden !important;
-    border: 1px solid var(--vc-border-strong) !important;
-    border-radius: 10px !important;
+    border-radius: 15px !important;
     outline: 0 !important;
     background: var(--vc-panel) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.025) !important;
@@ -1301,6 +1300,7 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     width: max-content !important;
     min-width: 0 !important;
     overflow: visible !important;
+    cursor: pointer !important;
 }
 
 .gradio-container #vc-ai-backend-control .wrap-inner,
@@ -1311,8 +1311,9 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     width: max-content !important;
     min-width: 0 !important;
     overflow: visible !important;
-    padding: 0 28px 0 12px !important;
-    gap: 4px !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    cursor: pointer !important;
 }
 
 .gradio-container #vc-ai-backend-control .secondary-wrap,
@@ -1330,8 +1331,10 @@ html[data-theme="light"] .gradio-container input[type="checkbox"]:checked {
     field-sizing: content !important;
     width: auto !important;
     min-width: 4ch !important;
+    min-height: 38px !important;
+    height: 38px !important;
     overflow: visible !important;
-    padding-right: 2px !important;
+    padding: 0 28px 0 12px !important;
     cursor: pointer !important;
     caret-color: transparent !important;
 }
