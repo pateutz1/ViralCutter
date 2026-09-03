@@ -37,6 +37,8 @@ function icon(name) {
     stop: '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
     terminal: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 10 3 2-3 2M13 14h4"/>',
     gallery: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M4 7h16M10 7V5h4v2m-5 0l.5 12h5L15 7"/>',
   }[name] || "";
   const fill = name === "generate" || name === "actions" || name === "stop" ? ' data-fill="1"' : "";
   return `<span class="vc-icon" aria-hidden="true"><svg viewBox="0 0 24 24"${fill}>${svg}</svg></span>`;
@@ -63,6 +65,20 @@ function showView(name) {
   document.querySelectorAll(".vc-nav-item").forEach((btn) => {
     btn.classList.toggle("vc-nav-active", btn.dataset.view === name);
   });
+  const heading = {
+    create: { eyebrow: "New production", title: "Create your next short", copy: "Choose the source, tune clip selection, and control framing and captions in one focused workspace.", num: "01", meta: "Workspace" },
+    editor: { eyebrow: "Caption studio", title: "Edit cues and re-burn", copy: "Load a project file, fix timing and wording, then render captions onto a clip.", num: "02", meta: "Editor" },
+    library: { eyebrow: "Archive", title: "Browse finished clips", copy: "Open a project gallery and review the shorts already on disk.", num: "03", meta: "Library" },
+    settings: { eyebrow: "Workspace", title: "Providers and defaults", copy: "Set the AI backend, API key, and model used for clip selection.", num: "04", meta: "Settings" },
+  }[name];
+  if (!heading) return;
+  const root = document.querySelector(".vc-workspace-heading");
+  if (!root) return;
+  root.querySelector(".vc-eyebrow").textContent = heading.eyebrow;
+  root.querySelector("h1").textContent = heading.title;
+  root.querySelector("p").textContent = heading.copy;
+  root.querySelector(".vc-workspace-meta span").textContent = heading.num;
+  root.querySelector(".vc-workspace-meta small").textContent = heading.meta;
 }
 
 function fillSelect(el, values, selected) {

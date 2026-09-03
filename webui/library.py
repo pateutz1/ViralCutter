@@ -105,7 +105,7 @@ def generate_project_gallery(project_path_name, is_full_path=False):
     Generates HTML gallery for a given project folder using FastAPI Static Files mounting.
     """
     if not project_path_name:
-        return f'<div style="padding: 20px; text-align: center;">{i18n("No project selected.")}</div>'
+        return f'<div class="vc-gallery-empty">{i18n("No project selected.")}</div>'
     
     # Determine absolute path to project folder
     if is_full_path:
@@ -114,7 +114,7 @@ def generate_project_gallery(project_path_name, is_full_path=False):
         project_folder_path = os.path.join(VIRALS_DIR, project_path_name)
 
     if not os.path.exists(project_folder_path):
-        return f'<div style="padding: 20px; text-align: center;">{i18n("Project path not found: {}").format(project_folder_path)}</div>'
+        return f'<div class="vc-gallery-empty">{i18n("Project path not found: {}").format(project_folder_path)}</div>'
 
     try:
         # Load JSON
@@ -141,6 +141,8 @@ def generate_project_gallery(project_path_name, is_full_path=False):
         html_cards = ""
         
         for i, seg in enumerate(segments_list):
+            download_link = ""
+            export_link = ""
             title = seg.get("title", f"{i18n('Segment')} {i+1}")
             score = seg.get("score", "N/A")
             description = seg.get("description", i18n("No description available."))
@@ -148,7 +150,6 @@ def generate_project_gallery(project_path_name, is_full_path=False):
             video_path = _find_segment_video(project_folder_path, i, seg)
 
             video_tag = ""
-            download_link = ""
             if video_path:
                 try:
                     abs_video = os.path.abspath(video_path)
@@ -188,12 +189,12 @@ def generate_project_gallery(project_path_name, is_full_path=False):
                              print(f"DEBUG:   File NOT FOUND.")
                              
                          video_tag = f"""
-                        <video controls preload="metadata" playsinline style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;">
+                        <video class="vc-gallery-video" controls preload="metadata" playsinline>
                             <source src="{video_src}" type="video/mp4">
                             Your browser does not support the video tag.
                         </video>
                         """
-                         download_link = f'<a href="{video_src}" target="_blank" download="{os.path.basename(video_path)}" style="color: #aaa; display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 50%; transition: color 0.2s;" title="Download" onmouseover="this.style.color=\'#fff\'" onmouseout="this.style.color=\'#aaa\'"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>'
+                         download_link = f'<a class="vc-gallery-action" href="{video_src}" target="_blank" download="{os.path.basename(video_path)}" title="Download"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>'
 
                     else:
                         # Use Relative Path through /virals mount
@@ -213,25 +214,23 @@ def generate_project_gallery(project_path_name, is_full_path=False):
                             video_src = f"/virals/{url_path}?t={timestamp}"
                             
                             video_tag = f"""
-                            <video controls preload="metadata" playsinline style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;">
+                            <video class="vc-gallery-video" controls preload="metadata" playsinline>
                                 <source src="{video_src}" type="video/mp4">
                                 Your browser does not support the video tag.
                             </video>
                             """
-                            
-                            
-                            download_link = f'<a href="{video_src}" download="{os.path.basename(video_path)}" style="color: #aaa; display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 50%; transition: color 0.2s;" title="Download" onmouseover="this.style.color=\'#fff\'" onmouseout="this.style.color=\'#aaa\'"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>'
+                            download_link = f'<a class="vc-gallery-action" href="{video_src}" download="{os.path.basename(video_path)}" title="Download"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>'
                             
                             # Export XML Link
                             # project_path_name might be full path or folder name
                             proj_name_api = os.path.basename(project_path_name)
                             
-                            def make_export_btn(fmt, label, color_hover, svg_path):
+                            def make_export_btn(fmt, label, svg_path):
                                 src = f"/export_xml_api?project={proj_name_api}&segment={i}&format={fmt}"
-                                return f'<a href="{src}" target="_blank" style="color: #aaa; display: flex; align-items: center; justify-content: center; padding: 5px; border-radius: 50%; transition: color 0.2s;" title="{label}" onmouseover="this.style.color=\'{color_hover}\'" onmouseout="this.style.color=\'#aaa\'"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{svg_path}</svg></a>'
+                                return f'<a class="vc-gallery-action" href="{src}" target="_blank" title="{label}"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{svg_path}</svg></a>'
 
                             # Premiere (Pr)
-                            export_pr = make_export_btn("premiere", "Export Premiere XML (Split Screen – known bug)", "#d064ff", '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15h6"></path><path d="M12 12v6"></path>')
+                            export_pr = make_export_btn("premiere", "Export Premiere XML (Split Screen – known bug)", '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M9 15h6"></path><path d="M12 12v6"></path>')
                             
                             # Resolve (Dv)
                             # export_dv = make_export_btn("resolve", "Export DaVinci Resolve XML", "#ff6464", '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="12" cy="14" r="3"></circle>')
@@ -242,60 +241,43 @@ def generate_project_gallery(project_path_name, is_full_path=False):
                             export_link = f"{export_pr}" #{export_dv}{export_fc}"
 
                         else:
-                            video_tag = f'<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #222; color: #666;"><span>⚠️</span><br>{i18n("External Video")}</div>'
+                            video_tag = f'<div class="vc-gallery-missing">{i18n("External Video")}</div>'
                 except Exception as e:
-                    video_tag = f'<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #222; color: #666;"><span>⚠️</span><br>{i18n("Error: {}").format(str(e))}</div>'
+                    video_tag = f'<div class="vc-gallery-missing">{i18n("Error: {}").format(str(e))}</div>'
 
             else:
-                video_tag = f'<div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #222; color: #666;"><span>⚠️</span><br>{i18n("Not Found")}</div>'
-            
-            # Score
-            score_color = "#22c55e"
+                video_tag = f'<div class="vc-gallery-missing">{i18n("Not Found")}</div>'
+
+            score_mod = "vc-score-na"
             try:
-                if isinstance(score, int) or (isinstance(score, str) and score.isdigit()):
-                    val = int(score)
-                    if val < 70: score_color = "#ef4444" 
-                    elif val < 85: score_color = "#eab308"
-            except: pass
+                val = int(score)
+                if val < 70:
+                    score_mod = "vc-score-low"
+                elif val < 85:
+                    score_mod = "vc-score-mid"
+                else:
+                    score_mod = "vc-score-ok"
+            except Exception:
+                pass
+            safe_title = str(title).replace("&", "&amp;").replace("<", "&lt;").replace('"', "&quot;")
 
-            # Card HTML - Dark Grid Style like Opus.pro (Inline Styles)
-            if 'export_link' not in locals(): export_link = "" # Fallback if URL mode didn't trigger
-
-            card_html = f"""
-            <div style="display: flex; flex-direction: column; background: transparent; overflow: visible;">
-                
-                <!-- Video Player Container (9:16 Aspect Ratio) -->
-                <div style="position: relative; width: 100%; padding-top: 177.77%; background: #111; border-radius: 12px; overflow: hidden; margin-bottom: 12px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                    {video_tag}
-                </div>
-                
-                <!-- Info Area -->
-                <div style="display: flex; flex-direction: column; gap: 6px; padding: 0 4px;">
-                    <!-- Top Row: Score and Actions -->
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-size: 28px; font-weight: 900; line-height: 1; color: {score_color}; font-family: sans-serif;">{score}</span>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            {export_link}
-                            {download_link}
-                        </div>
+            html_cards += f"""
+            <article class="vc-gallery-card">
+                <div class="vc-gallery-player">{video_tag}</div>
+                <div class="vc-gallery-meta">
+                    <div class="vc-gallery-meta-row">
+                        <span class="vc-gallery-score {score_mod}">{score}</span>
+                        <div class="vc-gallery-actions">{export_link}{download_link}</div>
                     </div>
-                    
-                    <!-- Title -->
-                    <h4 style="margin: 4px 0 0 0; color: #e5e5e5; font-size: 15px; font-weight: 600; line-height: 1.4; font-family: sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-align: center;" title="{title}">{title}</h4>
+                    <h4 class="vc-gallery-title" title="{safe_title}">{safe_title}</h4>
                 </div>
-            </div>
+            </article>
             """
-            html_cards += card_html
         
         if not html_cards:
-             return f'<div style="padding: 40px; text-align: center; color: #888; font-size: 1.2em;">{i18n("No viral segments found.")}</div>'
+             return f'<div class="vc-gallery-empty">{i18n("No viral segments found.")}</div>'
 
-        # Gallery Container
-        return f"""
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 30px; width: 100%; padding: 10px 0;">
-            {html_cards}
-        </div>
-        """
+        return f'<div class="vc-gallery">{html_cards}</div>'
 
     except Exception as e:
         return i18n("Error loading gallery: {}").format(e)
