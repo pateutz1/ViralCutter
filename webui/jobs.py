@@ -12,6 +12,23 @@ import library
 import psutil
 import ui_settings as ui_cfg
 
+def _is_replaceable_progress(line):
+    text = line.strip()
+    if text.startswith("[download]") and "completed" not in text.lower() and "Destination" not in text:
+        return True
+    return text.startswith("frame=")
+
+
+def _append_console_line(logs, line):
+    if _is_replaceable_progress(line):
+        parts = logs.rsplit("\n", 1)
+        previous = parts[-1] if parts else ""
+        if previous and _is_replaceable_progress(previous):
+            prefix = parts[0] + "\n" if len(parts) > 1 else ""
+            return prefix + line.rstrip("\n") + "\n"
+    return logs + line
+
+
 WORKING_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAIN_SCRIPT_PATH = os.path.join(WORKING_DIR, "main_improved.py")
 VIRALS_DIR = os.path.join(WORKING_DIR, "VIRALS")
@@ -310,7 +327,7 @@ def run_viral_cutter(payload, job):
             if not line and current_process.poll() is not None:
                 break
             if line:
-                logs += line
+                logs = _append_console_line(logs, line)
                 if "Project Folder:" in line:
                     parts = line.split("Project Folder:")
                     if len(parts) > 1:

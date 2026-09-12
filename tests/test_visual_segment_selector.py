@@ -13,7 +13,13 @@ scripts_package.__path__ = [str(PROJECT_ROOT / "scripts")]
 sys.modules["scripts"] = scripts_package
 
 from scripts import create_viral_segments
-from scripts.visual_segment_selector import _rank_windows, _robust_normalize, _text_frame_risk
+from scripts.visual_segment_selector import (
+    _duration_bounds,
+    _rank_scenes,
+    _rank_windows,
+    _robust_normalize,
+    _text_frame_risk,
+)
 
 
 class VisualSegmentSelectorTests(unittest.TestCase):
@@ -22,6 +28,63 @@ class VisualSegmentSelectorTests(unittest.TestCase):
         self.assertEqual(result.shape, (4,))
         self.assertGreaterEqual(float(result.min()), 0.0)
         self.assertLessEqual(float(result.max()), 1.0)
+
+    def test_duration_bounds_do_not_force_45s(self):
+        min_d, max_d = _duration_bounds(10, 20, 600)
+        self.assertEqual(min_d, 10.0)
+        self.assertEqual(max_d, 20.0)
+
+    def test_rank_scenes_fills_requested_count_from_short_gags(self):
+        times = np.arange(0, 200, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.2)
+        boundaries = []
+        for index in range(16):
+            start = 10.0 + index * 8.0
+            boundaries.append(start)
+            scores[(times >= start) & (times < start + 7.5)] = 0.4 + index * 0.02
+        result = _rank_scenes(
+            times, scores, 10, 20, 200, 12, np, scene_boundaries=boundaries
+        )
+        self.assertGreaterEqual(len(result), 8)
+
+    def test_rank_scenes_keeps_complete_gag(self):
+        times = np.arange(0, 80, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[(times >= 20) & (times < 34)] = 1.0
+        result = _rank_scenes(
+            times, scores, 10, 20, 80, 1, np, scene_boundaries=[20.0, 34.0]
+        )
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0]["start"], 20.0)
+        self.assertAlmostEqual(result[0]["end"], 34.0)
+
+    def test_rank_scenes_skips_short_tail_before_full_gag(self):
+        times = np.arange(0, 80, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.15)
+        scores[(times >= 24) & (times < 38)] = 1.0
+        result = _rank_scenes(
+            times, scores, 10, 20, 80, 1, np, scene_boundaries=[20.0, 24.0, 38.0]
+        )
+        self.assertEqual(result[0]["start"], 24.0)
+        self.assertAlmostEqual(result[0]["end"], 38.0)
+
+    def test_rank_scenes_keeps_peak_inside_long_scene(self):
+        times = np.arange(0, 80, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.1)
+        scores[times == 50] = 1.0
+        result = _rank_scenes(
+            times, scores, 10, 20, 80, 1, np, scene_boundaries=[20.0, 70.0]
+        )
+        self.assertEqual(len(result), 1)
+        self.assertLessEqual(result[0]["end"] - result[0]["start"], 20.01)
+        self.assertLessEqual(result[0]["start"], 50.0)
+        self.assertGreaterEqual(result[0]["end"], 50.0)
+        self.assertGreaterEqual(result[0]["start"], 20.0)
+
+    def test_timeline_fallback_respects_short_max_duration(self):
+        result = create_viral_segments._fallback_timeline_segments(3, 10, 20, 200)
+        self.assertEqual(len(result["segments"]), 3)
+        self.assertAlmostEqual(result["segments"][0]["duration"], 20.0)
 
     def test_rank_windows_selects_activity_cluster(self):
         times = np.arange(0, 180, dtype=np.float32)

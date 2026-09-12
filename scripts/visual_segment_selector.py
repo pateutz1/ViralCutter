@@ -63,6 +63,213 @@ def _text_frame_risk(gray, cv2, np):
     return min(1.0, sum(regions[:3]) * 0.55)
 
 
+def _duration_bounds(min_duration, max_duration, video_duration):
+    video_duration = max(0.0, float(video_duration))
+    min_d = max(1.0, min(float(min_duration), video_duration)) if video_duration else max(1.0, float(min_duration))
+    max_d = max(min_d, min(float(max_duration), video_duration)) if video_duration else max(min_d, float(max_duration))
+    return min_d, max_d
+
+
+def _event_threshold(scores, np):
+    return max(
+        float(np.percentile(scores, 75)),
+        float(np.median(scores) + 0.5 * np.std(scores)),
+    )
+
+
+def _collapse_micro_spans(spans, min_keep=2.0):
+    """Glue flash cuts onto the next real scene so 0.5s samples can score them."""
+    if not spans:
+        return []
+    collapsed = []
+    carry_start = None
+    for start, end in spans:
+        if end - start < min_keep:
+            if carry_start is None:
+                carry_start = start
+            continue
+        if carry_start is not None:
+            start = carry_start
+            carry_start = None
+        collapsed.append((start, end))
+    if carry_start is not None:
+        if collapsed:
+            last_start, _ = collapsed[-1]
+            collapsed[-1] = (last_start, spans[-1][1])
+        elif spans[-1][1] - carry_start >= min_keep:
+            collapsed.append((carry_start, spans[-1][1]))
+    return collapsed
+
+
+def _scene_spans(boundaries, video_duration, np):
+    cuts = [0.0]
+    if boundaries is not None:
+        for value in np.asarray(boundaries, dtype=np.float32):
+            point = float(value)
+            if 0.15 < point < float(video_duration) - 0.15:
+                cuts.append(point)
+    cuts.append(float(video_duration))
+    cuts = sorted(set(round(value, 3) for value in cuts))
+    spans = []
+    for start, end in zip(cuts, cuts[1:]):
+        if end - start >= 0.4:
+            spans.append((float(start), float(end)))
+    return spans
+
+
+def _span_metrics(times, scores, start, end, np, event_threshold):
+    mask = (times >= start) & (times < end)
+    if not np.any(mask):
+        return None
+    window = scores[mask]
+    if window.size < 2:
+        return None
+    mean_score = float(window.mean())
+    peak_score = float(np.percentile(window, 85))
+    event_density = float((window >= event_threshold).mean())
+    activity_score = 0.55 * mean_score + 0.30 * peak_score + 0.15 * event_density
+    peak_idx = int(np.argmax(window))
+    peak_offset = peak_idx / max(1, window.size - 1)
+    peak_time = float(times[mask][peak_idx])
+    if peak_offset > 0.85:
+        activity_score *= 0.72
+    elif peak_offset < 0.08:
+        activity_score *= 0.88
+    elif 0.20 <= peak_offset <= 0.70:
+        activity_score *= 1.06
+    return {"score": activity_score, "peak_time": peak_time, "peak_offset": peak_offset}
+
+
+def _fit_scene_window(start, end, peak_time, min_d, max_d):
+    """Keep a whole scene, or a peak-containing slice that never starts after the action."""
+    duration = float(end) - float(start)
+    if duration <= max_d + 1e-6:
+        return float(start), float(end)
+    target = float(max_d)
+    if peak_time <= start + target * 0.92:
+        return float(start), float(start) + target
+    window_start = min(peak_time - target * 0.40, end - target)
+    window_start = max(float(start), window_start)
+    window_start = min(window_start, float(peak_time))
+    window_end = min(float(end), window_start + target)
+    if window_end - window_start < min_d:
+        window_start = max(float(start), window_end - target)
+    return float(window_start), float(window_end)
+
+
+def _apply_text_metrics(candidate, times, text_risks, np, max_text_frame_percent):
+    if text_risks is None:
+        return candidate
+    risks = np.asarray(text_risks, dtype=np.float32)
+    if risks.size != times.size:
+        return candidate
+    mask = (times >= candidate["start"]) & (times < candidate["end"])
+    window_text = risks[mask]
+    if window_text.size == 0:
+        return candidate
+    allowed = max(0.0, min(1.0, float(max_text_frame_percent) / 100.0))
+    text_frame_ratio = float((window_text >= TEXT_RISK_THRESHOLD).mean())
+    text_risk = float(window_text.mean())
+    candidate.update({
+        "score": candidate["score"] * (1.0 - 0.35 * text_risk),
+        "activity_score": candidate["score"],
+        "text_risk": text_risk,
+        "text_frame_ratio": text_frame_ratio,
+        "text_safe": text_frame_ratio <= allowed,
+    })
+    return candidate
+
+
+def _rank_scenes(
+    sample_times,
+    activity_scores,
+    min_duration,
+    max_duration,
+    video_duration,
+    count,
+    np,
+    scene_boundaries=None,
+    text_risks=None,
+    max_text_frame_percent=15.0,
+):
+    """Rank complete hard-cut scenes and return non-overlapping  min/max clips."""
+    times = np.asarray(sample_times, dtype=np.float32)
+    scores = np.asarray(activity_scores, dtype=np.float32)
+    if times.size == 0 or scores.size != times.size:
+        return []
+    min_d, max_d = _duration_bounds(min_duration, max_duration, video_duration)
+    keep_min = min(min_d, max(6.0, min_d * 0.6))
+    spans = _collapse_micro_spans(_scene_spans(scene_boundaries, video_duration, np))
+    if not spans:
+        return []
+
+    event_threshold = _event_threshold(scores, np)
+    candidates = []
+    index = 0
+    while index < len(spans):
+        start, end = spans[index]
+        last = index
+        length = end - start
+        if length < keep_min:
+            while last + 1 < len(spans) and (end - start) < min_d:
+                next_len = spans[last + 1][1] - spans[last + 1][0]
+                if next_len >= keep_min and (end - start) >= 2.0:
+                    break
+                last += 1
+                end = spans[last][1]
+                if (end - start) >= max_d:
+                    break
+            if (end - start) < keep_min:
+                index += 1
+                continue
+        metrics = _span_metrics(times, scores, start, end, np, event_threshold)
+        if metrics is None:
+            index += 1
+            continue
+        window_start, window_end = _fit_scene_window(
+            start, end, metrics["peak_time"], min_d, max_d
+        )
+        if window_end - window_start < keep_min:
+            index += 1
+            continue
+        fitted = _span_metrics(times, scores, window_start, window_end, np, event_threshold)
+        if fitted is None:
+            index += 1
+            continue
+        candidate = {
+            "start": window_start,
+            "end": window_end,
+            "score": fitted["score"],
+        }
+        candidate = _apply_text_metrics(
+            candidate, times, text_risks, np, max_text_frame_percent
+        )
+        candidates.append(candidate)
+        index = last + 1
+
+    if text_risks is not None:
+        candidates.sort(
+            key=lambda item: (
+                0 if item.get("text_safe", True) else 1,
+                -item["score"],
+            )
+        )
+    else:
+        candidates.sort(key=lambda item: item["score"], reverse=True)
+
+    selected = []
+    for candidate in candidates:
+        if any(
+            min(candidate["end"], current["end"]) - max(candidate["start"], current["start"]) > 0.4
+            for current in selected
+        ):
+            continue
+        selected.append(candidate)
+        if len(selected) >= max(1, int(count or 1)):
+            break
+    return selected
+
+
 def _rank_windows(
     sample_times,
     activity_scores,
@@ -441,8 +648,12 @@ def select_visual_segments(
     if video_duration <= 0:
         raise RuntimeError("Could not determine video duration for visual scoring")
 
-    clip_len = min(float(max_duration), max(float(min_duration), 45.0), float(video_duration))
-    print(f"[VISUAL] Sampling {video_duration:.1f}s video every {sample_interval:.1f}s...")
+    min_d, max_d = _duration_bounds(min_duration, max_duration, video_duration)
+    clip_len = max_d
+    print(
+        f"[VISUAL] Sampling {video_duration:.1f}s video every {sample_interval:.1f}s "
+        f"for {min_d:.0f}-{max_d:.0f}s scene clips..."
+    )
     times, visual, text_risks, scene_changes = _sample_visual_activity(
         video_path,
         video_duration,
@@ -456,66 +667,73 @@ def select_visual_segments(
     precise_boundaries = _detect_scene_boundaries(video_path, np)
     if precise_boundaries.size:
         print(f"[VISUAL] Detected {precise_boundaries.size} precise scene boundaries.")
-    windows = _rank_windows(
+    elif scene_changes is not None and scene_changes.size:
+        positive = scene_changes[scene_changes > 0.0]
+        if positive.size:
+            boundary_threshold = max(0.55, float(np.percentile(positive, 75)))
+            precise_boundaries = times[scene_changes >= boundary_threshold]
+            if precise_boundaries.size:
+                print(f"[VISUAL] Using {precise_boundaries.size} sampled scene boundaries.")
+
+    wanted = max(1, int(count or 1))
+    windows = _rank_scenes(
         times,
         combined,
-        clip_len,
+        min_d,
+        max_d,
         video_duration,
-        count,
+        wanted,
         np,
+        scene_boundaries=precise_boundaries,
         text_risks=text_risks if text_safe else None,
         max_text_frame_percent=max_text_frame_percent,
-        scene_changes=scene_changes,
-        scene_boundaries=precise_boundaries,
     )
+    print(f"[VISUAL] Scene ranking kept {len(windows)}/{wanted} clip(s).")
+    if len(windows) < wanted:
+        extras = _rank_windows(
+            times,
+            combined,
+            clip_len,
+            video_duration,
+            wanted,
+            np,
+            text_risks=text_risks if text_safe else None,
+            max_text_frame_percent=max_text_frame_percent,
+            scene_changes=scene_changes,
+            scene_boundaries=precise_boundaries,
+        )
+        for extra in extras:
+            if any(
+                min(extra["end"], current["end"]) - max(extra["start"], current["start"]) > 0.4
+                for current in windows
+            ):
+                continue
+            windows.append(extra)
+            if len(windows) >= wanted:
+                break
+        print(f"[VISUAL] After window fill: {len(windows)}/{wanted} clip(s).")
     if not windows:
         raise RuntimeError("Visual scoring produced no candidate windows")
 
-    if text_safe and not all(window.get("text_safe", False) for window in windows):
-        montages = _build_text_safe_montages(
-            times,
-            combined,
-            text_risks,
-            clip_len,
-            count,
-            video_duration,
-            np,
-        )
-        if not montages:
-            best_percent = min(100.0 * window.get("text_frame_ratio", 1.0) for window in windows)
-            raise RuntimeError(
-                "Text Safe Selection could not collect enough clean footage for "
-                f"{max(1, int(count or 1))} x {clip_len:.1f}s. "
-                f"Best continuous window was {best_percent:.1f}% crop-risk frames. "
-                "Use a shorter duration or a higher text-risk limit."
+    if text_safe:
+        safe_windows = [window for window in windows if window.get("text_safe", False)]
+        if len(safe_windows) >= wanted:
+            windows = safe_windows[:wanted]
+        elif safe_windows:
+            extras = [window for window in windows if window not in safe_windows]
+            extras.sort(key=lambda item: item.get("text_risk", 1.0))
+            windows = (safe_windows + extras)[:wanted]
+            print(
+                f"[TEXT SAFE] Only {len(safe_windows)} clean scene(s); "
+                f"filled {len(windows) - len(safe_windows)} more by lowest text risk."
             )
-        windows = [
-            {
-                "start": ranges[0]["start_time"],
-                "end": ranges[-1]["start_time"] + ranges[-1]["duration"],
-                "score": float(np.mean([
-                    combined[
-                        (times >= source["start_time"])
-                        & (times < source["start_time"] + source["duration"])
-                    ].mean()
-                    for source in ranges
-                ])),
-                "text_safe": True,
-                "text_frame_ratio": 0.0,
-                "text_risk": 0.0,
-                "source_ranges": ranges,
-            }
-            for ranges in montages
-        ]
-        print(
-            f"[TEXT SAFE] No continuous window met the limit; built {len(windows)} "
-            "clean montage(s) from multiple source ranges."
-        )
+        else:
+            print("[TEXT SAFE] No fully clean scene; keeping the lowest-risk scored clips.")
 
     segments = []
     for index, window in enumerate(windows, start=1):
         score_100 = int(round(60 + 39 * max(0.0, min(1.0, window["score"]))))
-        reasoning = "Selected locally from motion, scene changes, image quality, and audio-energy peaks."
+        reasoning = "Selected a complete scene from motion, hard cuts, and audio-energy peaks."
         if text_safe:
             text_frame_percent = round(100.0 * window.get("text_frame_ratio", 0.0), 1)
             reasoning += f" Text-safe analysis estimated {text_frame_percent}% crop-risk frames."

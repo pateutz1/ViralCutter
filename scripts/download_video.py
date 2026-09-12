@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import time
 import yt_dlp
 import sys
 from i18n.i18n import I18nAuto
@@ -22,15 +23,26 @@ def sanitize_filename(name):
     cleaned = cleaned.strip()
     return cleaned
 
+_LAST_PROGRESS_AT = 0.0
+
+
 def progress_hook(d):
-    if d['status'] == 'downloading':
-        try:
-            p = d.get('_percent_str', '').replace('%','')
-            print(f"[download] {p}% - {d.get('_eta_str', 'N/A')} remaining", flush=True)
-        except:
-            pass
-    elif d['status'] == 'finished':
-        print(f"[download] Download completed: {d['filename']}", flush=True)
+    global _LAST_PROGRESS_AT
+    if d["status"] == "downloading":
+        now = time.time()
+        if now - _LAST_PROGRESS_AT < 0.5:
+            return
+        _LAST_PROGRESS_AT = now
+        percent = (d.get("_percent_str") or "?").strip()
+        speed = (d.get("_speed_str") or "").strip()
+        eta = (d.get("_eta_str") or "").strip()
+        frag_index = d.get("fragment_index")
+        frag_count = d.get("fragment_count")
+        frag = f"  {frag_index}/{frag_count}" if frag_index and frag_count else ""
+        print(f"[download] {percent}  {speed}  ETA {eta or '—'}{frag}", flush=True)
+    elif d["status"] == "finished":
+        name = os.path.basename(d.get("filename") or "")
+        print(f"[download] completed {name}", flush=True)
 
 
 def _detect_js_runtimes():
@@ -71,6 +83,7 @@ def _base_ydl_opts(**extra):
     """Shared yt-dlp options: JS runtime + EJS remote components, no Chrome cookie lock."""
     opts = {
         "quiet": True,
+        "noprogress": True,
         "no_warnings": True,
         "remote_components": ["ejs:github"],
         "http_headers": {
@@ -241,7 +254,8 @@ def download(url, base_root="VIRALS", download_subs=True, quality="best"):
         writeautomaticsub=download_subs,
         subtitleslangs=SUBTITLE_LANGS,
         skip_download=False,
-        quiet=False,
+        quiet=True,
+        noprogress=True,
         no_warnings=True,
     )
     ydl_opts.update(cookie_opts)

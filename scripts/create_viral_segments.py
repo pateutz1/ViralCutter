@@ -764,7 +764,7 @@ def _fallback_timeline_segments(count, min_duration, max_duration, video_duratio
     count = max(1, int(count or 1))
     if video_duration <= 0:
         return {"segments": []}
-    clip_len = min(float(max_duration), max(float(min_duration), 45.0), video_duration)
+    clip_len = min(max(float(min_duration), float(max_duration)), video_duration)
     pad = min(5.0, video_duration * 0.02)
     usable = max(clip_len, video_duration - pad)
     step = (usable - clip_len) / (count - 1) if count > 1 else 0
