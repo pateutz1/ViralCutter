@@ -45,7 +45,20 @@ class VisualSegmentSelectorTests(unittest.TestCase):
         result = _rank_scenes(
             times, scores, 10, 20, 200, 12, np, scene_boundaries=boundaries
         )
-        self.assertGreaterEqual(len(result), 8)
+        self.assertGreaterEqual(len(result), 6)
+        for window in result:
+            duration = window["end"] - window["start"]
+            self.assertGreaterEqual(duration, 10.0 - 1e-3)
+            self.assertLessEqual(duration, 20.0 + 1e-3)
+
+    def test_rank_scenes_drops_clips_shorter_than_min(self):
+        times = np.arange(0, 40, 0.5, dtype=np.float32)
+        scores = np.full_like(times, 0.2)
+        scores[(times >= 10) & (times < 16)] = 1.0
+        result = _rank_scenes(
+            times, scores, 10, 20, 40, 3, np, scene_boundaries=[10.0, 16.0]
+        )
+        self.assertTrue(all(item["end"] - item["start"] >= 10.0 - 1e-3 for item in result))
 
     def test_rank_scenes_keeps_complete_gag(self):
         times = np.arange(0, 80, 0.5, dtype=np.float32)
@@ -67,6 +80,7 @@ class VisualSegmentSelectorTests(unittest.TestCase):
         )
         self.assertEqual(result[0]["start"], 24.0)
         self.assertAlmostEqual(result[0]["end"], 38.0)
+        self.assertGreaterEqual(result[0]["end"] - result[0]["start"], 10.0)
 
     def test_rank_scenes_keeps_peak_inside_long_scene(self):
         times = np.arange(0, 80, 0.5, dtype=np.float32)

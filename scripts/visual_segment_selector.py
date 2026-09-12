@@ -198,7 +198,6 @@ def _rank_scenes(
     if times.size == 0 or scores.size != times.size:
         return []
     min_d, max_d = _duration_bounds(min_duration, max_duration, video_duration)
-    keep_min = min(min_d, max(6.0, min_d * 0.6))
     spans = _collapse_micro_spans(_scene_spans(scene_boundaries, video_duration, np))
     if not spans:
         return []
@@ -209,19 +208,17 @@ def _rank_scenes(
     while index < len(spans):
         start, end = spans[index]
         last = index
-        length = end - start
-        if length < keep_min:
-            while last + 1 < len(spans) and (end - start) < min_d:
-                next_len = spans[last + 1][1] - spans[last + 1][0]
-                if next_len >= keep_min and (end - start) >= 2.0:
-                    break
-                last += 1
-                end = spans[last][1]
-                if (end - start) >= max_d:
-                    break
-            if (end - start) < keep_min:
-                index += 1
-                continue
+        while (end - start) < min_d and last + 1 < len(spans):
+            next_len = spans[last + 1][1] - spans[last + 1][0]
+            if next_len >= min_d and (end - start) >= 2.0:
+                break
+            last += 1
+            end = spans[last][1]
+            if (end - start) >= max_d:
+                break
+        if (end - start) < min_d:
+            index += 1
+            continue
         metrics = _span_metrics(times, scores, start, end, np, event_threshold)
         if metrics is None:
             index += 1
@@ -229,9 +226,11 @@ def _rank_scenes(
         window_start, window_end = _fit_scene_window(
             start, end, metrics["peak_time"], min_d, max_d
         )
-        if window_end - window_start < keep_min:
+        if window_end - window_start + 1e-6 < min_d:
             index += 1
             continue
+        if window_end - window_start > max_d + 1e-6:
+            window_end = window_start + max_d
         fitted = _span_metrics(times, scores, window_start, window_end, np, event_threshold)
         if fitted is None:
             index += 1
@@ -241,6 +240,9 @@ def _rank_scenes(
             "end": window_end,
             "score": fitted["score"],
         }
+        if window_end - window_start + 1e-6 < min_d:
+            index += 1
+            continue
         candidate = _apply_text_metrics(
             candidate, times, text_risks, np, max_text_frame_percent
         )
@@ -712,6 +714,10 @@ def select_visual_segments(
             if len(windows) >= wanted:
                 break
         print(f"[VISUAL] After window fill: {len(windows)}/{wanted} clip(s).")
+    windows = [
+        window for window in windows
+        if min_d - 1e-3 <= (window["end"] - window["start"]) <= max_d + 1e-3
+    ]
     if not windows:
         raise RuntimeError("Visual scoring produced no candidate windows")
 
