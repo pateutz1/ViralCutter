@@ -21,8 +21,9 @@ def _is_replaceable_progress(line):
 
 def _append_console_line(logs, line):
     if _is_replaceable_progress(line):
-        parts = logs.rsplit("\n", 1)
-        previous = parts[-1] if parts else ""
+        stripped = logs.rstrip("\n")
+        parts = stripped.rsplit("\n", 1) if stripped else [""]
+        previous = parts[-1]
         if previous and _is_replaceable_progress(previous):
             prefix = parts[0] + "\n" if len(parts) > 1 else ""
             return prefix + line.rstrip("\n") + "\n"

@@ -30,7 +30,7 @@ def progress_hook(d):
     global _LAST_PROGRESS_AT
     if d["status"] == "downloading":
         now = time.time()
-        if now - _LAST_PROGRESS_AT < 0.5:
+        if now - _LAST_PROGRESS_AT < 2.0:
             return
         _LAST_PROGRESS_AT = now
         percent = (d.get("_percent_str") or "?").strip()
