@@ -36,18 +36,26 @@ def refresh_projects():
     projs = get_existing_projects()
     return gr.update(choices=projs, value=None)
 
-def _safe_segment_base_name(index, segment):
+def _safe_segment_base_name(index, segment, project_folder_path=None):
+    from scripts.cut_segments import final_clip_stem
+    if project_folder_path:
+        return final_clip_stem(project_folder_path, index, segment)
     title = segment.get("title", f"Segment {index + 1}")
     safe_title = "".join(
         character for character in str(title) if character.isalnum() or character in " _-"
     ).strip()
     safe_title = safe_title.replace(" ", "_")[:60]
-    return f"{index:03d}_{safe_title}" if safe_title else f"{index:03d}_Segment_{index + 1}"
+    base = f"{index:03d}_{safe_title}" if safe_title else f"{index:03d}_Segment_{index + 1}"
+    try:
+        score = int(float(segment.get("score", 0)))
+    except (TypeError, ValueError):
+        score = 0
+    return f"{score}_{base}"
 
 
 def _find_segment_video(project_folder_path, index, segment):
     idx_str = f"{index:03d}"
-    base_name = _safe_segment_base_name(index, segment)
+    base_name = _safe_segment_base_name(index, segment, project_folder_path)
     burned_sub_dir = os.path.join(project_folder_path, "burned_sub")
     final_dir = os.path.join(project_folder_path, "final")
     cuts_dir = os.path.join(project_folder_path, "cuts")
@@ -70,6 +78,7 @@ def _find_segment_video(project_folder_path, index, segment):
         os.path.join(burned_sub_dir, f"{base_name}_processed_subtitled.mp4"),
         os.path.join(burned_sub_dir, f"{base_name}_subtitled.mp4"),
         os.path.join(final_dir, f"{base_name}.mp4"),
+        os.path.join(final_dir, f"{base_name.split('_', 1)[1]}.mp4") if base_name[:1].isdigit() and "_" in base_name else "",
         os.path.join(cuts_dir, f"{base_name}_original_scale.mp4"),
         os.path.join(burned_sub_dir, f"final-output{idx_str}_processed_subtitled.mp4"),
         os.path.join(burned_sub_dir, f"output{idx_str}.mp4"),

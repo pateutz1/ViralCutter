@@ -6,6 +6,7 @@ import mediapipe as mp
 from scripts.one_face import crop_and_resize_single_face, resize_with_padding, detect_face_or_body, crop_center_zoom
 from scripts.two_face import crop_and_resize_two_faces, detect_face_or_body_two_faces
 from scripts.content_bounds import detect_embedded_content_bounds, bounds_are_close
+from scripts.cut_segments import final_clip_stem
 try:
     from scripts.face_detection_insightface import init_insightface, detect_faces_insightface, crop_and_resize_insightface
     INSIGHTFACE_AVAILABLE = True
@@ -1373,11 +1374,13 @@ def edit(project_folder="tmp", face_model="insightface", face_mode="auto", detec
 
         # Determine Final Name (Title)
         base_name_final = input_filename.replace("_original_scale.mp4", "")
-        # If legacy name, try to improve it
-        if input_filename.startswith("output") and segments_data and index < len(segments_data):
-             title = segments_data[index].get("title", f"Segment_{index}")
-             safe_title = "".join([c for c in title if c.isalnum() or c in " _-"]).strip().replace(" ", "_")[:60]
-             base_name_final = f"{index:03d}_{safe_title}"
+        segment = None
+        if segments_data and index < len(segments_data):
+            segment = segments_data[index]
+        if segment is not None:
+            base_name_final = final_clip_stem(project_folder, index, segment)
+        elif input_filename.startswith("output"):
+            base_name_final = f"{index:03d}_{base_name_final}"
 
         if os.path.exists(input_file):
             success = False

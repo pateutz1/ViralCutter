@@ -591,11 +591,8 @@ def main():
                  
                  print(i18n("Renaming existing files with titles..."))
                  for idx, segment in enumerate(segments_data):
-                     title = segment.get("title", f"Segment_{idx}")
-                     safe_title = "".join([c for c in title if c.isalnum() or c in " _-"]).strip()
-                     safe_title = safe_title.replace(" ", "_")[:60]
-                     
-                     new_base_name = f"{idx:03d}_{safe_title}"
+                     from scripts.cut_segments import final_clip_stem
+                     new_base_name = final_clip_stem(project_folder, idx, segment)
                      
                      # 1. MP4
                      old_mp4_name = f"final-output{idx:03d}_processed.mp4"

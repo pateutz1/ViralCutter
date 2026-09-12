@@ -3,6 +3,27 @@ import os
 import subprocess
 import json
 
+
+def project_slug(project_folder, max_len=28):
+    name = os.path.basename(os.path.normpath(project_folder or ""))
+    cleaned = "".join(char if char.isalnum() else "_" for char in name)
+    cleaned = "_".join(part for part in cleaned.split("_") if part)
+    return (cleaned[:max_len] or "clip").rstrip("_")
+
+
+def final_clip_stem(project_folder, index, segment=None):
+    """Build `{score}_{index}_{folder_slug}_{start}s` from the project folder and segment."""
+    segment = segment or {}
+    try:
+        score = int(float(segment.get("score", 0)))
+    except (TypeError, ValueError):
+        score = 0
+    try:
+        start = int(round(float(segment.get("start_time", 0))))
+    except (TypeError, ValueError):
+        start = 0
+    return f"{score}_{int(index):03d}_{project_slug(project_folder)}_{start}s"
+
 def _encoder_works(encoder, preset):
     """Return True only when FFmpeg can actually initialize the encoder."""
     command = [
